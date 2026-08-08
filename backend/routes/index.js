@@ -5,8 +5,12 @@
  */
 
 import { Router } from 'express';
+import authRoutes from './auth.routes.js';
 
 const router = Router();
+
+// Mount Authentication Module Routes
+router.use('/auth', authRoutes);
 
 /**
  * @openapi

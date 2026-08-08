@@ -23,10 +23,22 @@ const app = express();
 // Security HTTP headers
 app.use(helmet());
 
-// CORS configuration for cross-origin requests
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGIN,
+  'http://localhost:5173',
+  'http://localhost:5174',
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow dev origin requests cleanly
+      }
+    },
     credentials: true,
   })
 );

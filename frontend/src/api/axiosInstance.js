@@ -5,7 +5,7 @@ import axios from 'axios';
  * 
  * Sets up base URL, request headers, credentials, and interceptor hooks.
  */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -17,11 +17,22 @@ const axiosInstance = axios.create({
   withCredentials: true,
 });
 
-// Request Interceptor: Attach bearer tokens or headers
+// Request Interceptor: Attach bearer tokens
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Note: Token injection will be connected when auth slice is wired
-    const token = localStorage.getItem('token');
+    let token = localStorage.getItem('token');
+    if (!token) {
+      try {
+        const persistedRoot = localStorage.getItem('persist:mdsaips_root');
+        if (persistedRoot) {
+          const authData = JSON.parse(JSON.parse(persistedRoot).auth || '{}');
+          token = authData.token;
+        }
+      } catch (e) {
+        // Fallthrough if parsing fails
+      }
+    }
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
