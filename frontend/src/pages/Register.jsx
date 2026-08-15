@@ -79,8 +79,13 @@ export const Register = () => {
         password: formData.password,
       });
 
-      if (response?.success) {
-        navigate('/verify-otp', { state: { email: formData.email } });
+      if (response?.requiresVerification || response?.success) {
+        navigate('/verify-otp', {
+          state: {
+            userId: response.userId,
+            email: response.email || formData.email.trim(),
+          },
+        });
       }
     } catch (err) {
       if (err.errors && Array.isArray(err.errors)) {

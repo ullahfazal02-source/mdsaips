@@ -8,12 +8,14 @@ import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import VerifyOtp from '@/pages/VerifyOtp';
 import Services from '@/pages/Services';
+import ServiceDetail from '@/pages/ServiceDetail';
 import VendorDashboard from '@/pages/VendorDashboard';
 import CustomerDashboard from '@/pages/CustomerDashboard';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AIPlanner from '@/pages/AIPlanner';
 import Booking from '@/pages/Booking';
 import Profile from '@/pages/Profile';
+import VendorProfile from '@/components/vendor/VendorProfile';
 
 /**
  * React Router Application Architecture
@@ -30,11 +32,21 @@ export const AppRouter = () => {
           <Route path="register" element={<Register />} />
           <Route path="verify-otp" element={<VerifyOtp />} />
           <Route path="services" element={<Services />} />
+          <Route path="services/:id" element={<ServiceDetail />} />
+          <Route path="vendors/:id" element={<VendorProfile />} />
           <Route path="ai-planner" element={<AIPlanner />} />
 
           {/* Protected Routes */}
           <Route
             path="booking"
+            element={
+              <ProtectedRoute>
+                <Booking />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="booking/:id"
             element={
               <ProtectedRoute>
                 <Booking />
@@ -62,7 +74,7 @@ export const AppRouter = () => {
           <Route
             path="vendor-dashboard"
             element={
-              <ProtectedRoute allowedRoles={['vendor']}>
+              <ProtectedRoute allowedRoles={['vendor', 'customer', 'admin']}>
                 <VendorDashboard />
               </ProtectedRoute>
             }

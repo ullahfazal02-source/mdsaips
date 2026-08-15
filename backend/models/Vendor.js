@@ -4,15 +4,21 @@ import mongoose from 'mongoose';
  * Vendor Schema
  * 
  * Profile for registered service providers linked 1-to-1 with a User account.
- * Stores business metadata, domain category, geo-location, verification status, and ratings.
+ * Stores business details, domain categories, geo-location, availability schedules,
+ * pricing tiers, cancellation policies, ratings, and document URLs.
  */
 const vendorSchema = new mongoose.Schema(
   {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Vendor profile must be associated with a User account'],
+      index: true,
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Vendor must be associated with a User account'],
-      unique: true,
+      index: true,
     },
     businessName: {
       type: String,
@@ -20,75 +26,125 @@ const vendorSchema = new mongoose.Schema(
       trim: true,
       minlength: [2, 'Business name must be at least 2 characters long'],
     },
-    domain: {
-      type: String,
-      enum: {
-        values: ['venue', 'catering', 'logistics', 'media', 'decor', 'entertainment', 'other'],
-        message: '{VALUE} is not a valid vendor domain category',
-      },
-      required: [true, 'Primary domain category is required'],
-    },
     description: {
       type: String,
       trim: true,
       maxlength: [2000, 'Description cannot exceed 2000 characters'],
+      default: '',
     },
-    address: {
-      street: String,
-      city: { type: String, required: [true, 'City is required'] },
-      state: String,
-      zipCode: String,
-      country: { type: String, default: 'India' },
-      geoCoordinates: {
-        type: {
-          type: String,
-          enum: ['Point'],
-          default: 'Point',
-        },
-        coordinates: {
-          type: [Number], // [longitude, latitude]
-          default: [0, 0],
-        },
+    category: {
+      type: String,
+      required: [true, 'Vendor primary category is required'],
+      enum: {
+        values: ['event', 'construction', 'home', 'accommodation'],
+        message: '{VALUE} is not a valid vendor category. Allowed: event, construction, home, accommodation',
+      },
+      index: true,
+    },
+    subCategory: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    servicesOffered: {
+      type: [String],
+      default: [],
+    },
+    pricing: {
+      basePrice: {
+        type: Number,
+        required: [true, 'Base price is required'],
+        min: [0, 'Base price cannot be negative'],
+        default: 0,
+      },
+      priceUnit: {
+        type: String,
+        default: 'per_event',
+        trim: true,
+      },
+      currency: {
+        type: String,
+        default: 'INR',
+        trim: true,
       },
     },
-    rating: {
+    location: {
+      city: {
+        type: String,
+        required: [true, 'City is required'],
+        trim: true,
+        index: true,
+      },
+      state: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      pincode: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      coordinates: {
+        lat: { type: Number, default: 0 },
+        lng: { type: Number, default: 0 },
+      },
+    },
+    availability: [
+      {
+        date: { type: String, required: true }, // Format YYYY-MM-DD
+        isAvailable: { type: Boolean, default: true },
+        slots: { type: [String], default: [] },
+      },
+    ],
+    cancellationPolicy: {
+      type: {
+        type: String,
+        enum: ['flexible', 'moderate', 'strict'],
+        default: 'flexible',
+      },
+      rules: [
+        {
+          hoursBeforeEvent: { type: Number, min: 0 },
+          refundPercentage: { type: Number, min: 0, max: 100 },
+        },
+      ],
+    },
+    ratings: {
       average: {
         type: Number,
         default: 0,
         min: [0, 'Rating cannot be less than 0'],
         max: [5, 'Rating cannot exceed 5'],
+        index: true,
       },
       count: {
         type: Number,
         default: 0,
       },
     },
-    verificationStatus: {
-      type: String,
-      enum: {
-        values: ['pending', 'verified', 'rejected'],
-        message: '{VALUE} is not a valid verification status',
-      },
-      default: 'pending',
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total earnings cannot be negative'],
     },
-    documents: [
-      {
-        title: String,
-        fileUrl: String,
-        uploadedAt: { type: Date, default: Date.now },
-      },
-    ],
-    contactEmail: {
-      type: String,
-      lowercase: true,
-      trim: true,
+    portfolio: {
+      type: [String], // Array of media/image URLs
+      default: [],
     },
-    contactPhone: String,
-    bankDetails: {
-      accountHolderName: String,
-      accountNumber: String,
-      bankName: String,
-      ifscCode: String,
+    documents: {
+      type: [String], // Array of document URLs
+      default: [],
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
     },
   },
   {
@@ -96,11 +152,18 @@ const vendorSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for Spatial & Category Searches
-vendorSchema.index({ domain: 1 });
-vendorSchema.index({ verificationStatus: 1 });
-vendorSchema.index({ 'rating.average': -1 });
-vendorSchema.index({ 'address.geoCoordinates': '2dsphere' });
+// Pre-validate middleware: Guarantee both user and userId fields are in sync
+vendorSchema.pre('validate', function (next) {
+  if (this.userId && !this.user) {
+    this.user = this.userId;
+  } else if (this.user && !this.userId) {
+    this.userId = this.user;
+  }
+  next();
+});
+
+// Compound Indexes for fast public search & filter
+vendorSchema.index({ category: 1, 'location.city': 1, isVerified: -1, 'ratings.average': -1 });
 
 export const Vendor = mongoose.models.Vendor || mongoose.model('Vendor', vendorSchema);
 export default Vendor;

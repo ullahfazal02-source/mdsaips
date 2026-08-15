@@ -20,7 +20,7 @@ export const useAuth = () => {
       const response = await axiosInstance.post('/auth/register', userData);
       dispatch(setAuthLoading(false));
       if (response.success) {
-        toast.success(response.message || 'Registration successful!');
+        toast.success(response.message || 'Registration successful! Verification code sent to email.');
       }
       return response;
     } catch (err) {
@@ -29,6 +29,50 @@ export const useAuth = () => {
       dispatch(setAuthError(errorMessage));
       toast.error(errorMessage);
       throw { message: errorMessage, errors: validationErrors };
+    }
+  };
+
+  /**
+   * Verify User OTP Code
+   */
+  const verifyOtp = async ({ userId, otp, type = 'email_verify' }) => {
+    dispatch(setAuthLoading(true));
+    dispatch(clearAuthError());
+    try {
+      const response = await axiosInstance.post('/auth/verify-otp', { userId, otp, type });
+      dispatch(setAuthLoading(false));
+
+      if (response.success && response.token && response.user) {
+        dispatch(setCredentials({ user: response.user, token: response.token }));
+        toast.success(response.message || 'Email verified successfully!');
+      }
+      return response;
+    } catch (err) {
+      const errorMessage = err.message || err.response?.data?.message || 'Verification failed';
+      dispatch(setAuthError(errorMessage));
+      toast.error(errorMessage);
+      throw { message: errorMessage };
+    }
+  };
+
+  /**
+   * Resend Verification OTP Code
+   */
+  const resendOtp = async ({ userId, type = 'email_verify' }) => {
+    dispatch(setAuthLoading(true));
+    dispatch(clearAuthError());
+    try {
+      const response = await axiosInstance.post('/auth/resend-otp', { userId, type });
+      dispatch(setAuthLoading(false));
+      if (response.success) {
+        toast.success(response.message || 'A new verification code has been sent.');
+      }
+      return response;
+    } catch (err) {
+      const errorMessage = err.message || err.response?.data?.message || 'Failed to resend code';
+      dispatch(setAuthError(errorMessage));
+      toast.error(errorMessage);
+      throw { message: errorMessage };
     }
   };
 
@@ -98,6 +142,8 @@ export const useAuth = () => {
     loading: authState.loading,
     error: authState.error,
     register,
+    verifyOtp,
+    resendOtp,
     login,
     logout: handleLogout,
     fetchProfile,

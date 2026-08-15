@@ -1,0 +1,199 @@
+import React from 'react';
+import { Calendar, MapPin, Users, Check, Play, CheckCircle, Eye, Tag } from 'lucide-react';
+import BookingStatus from './BookingStatus';
+
+/**
+ * BookingCard Component for Customer & Vendor Dashboards
+ */
+export const BookingCard = ({
+  booking,
+  isVendorView = false,
+  onConfirm,
+  onStart,
+  onComplete,
+  onViewDetails,
+  loadingActionId,
+}) => {
+  if (!booking) return null;
+
+  const {
+    _id,
+    bookingNumber,
+    serviceId,
+    vendorId,
+    customerId,
+    eventDate,
+    eventDetails,
+    packageSelected,
+    pricing,
+    status,
+    paymentStatus,
+  } = booking;
+
+  const service = serviceId || {};
+  const vendor = vendorId || {};
+  const customer = customerId || {};
+
+  const isLoading = loadingActionId === _id;
+
+  return (
+    <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all duration-300 space-y-5">
+      {/* Top Bar: Booking Number & Status Badge */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
+        <div>
+          <span className="text-[11px] font-mono text-slate-400 uppercase block">Booking Reference</span>
+          <span className="text-sm font-extrabold text-white font-mono">{bookingNumber}</span>
+        </div>
+
+        <BookingStatus status={status} showTimeline={false} />
+      </div>
+
+      {/* Main Details Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Service & Image Info */}
+        <div className="flex items-start space-x-4 md:col-span-2">
+          {service.images && service.images[0] ? (
+            <img
+              src={service.images[0]}
+              alt={service.title || 'Service'}
+              className="w-16 h-16 rounded-xl object-cover border border-slate-800 shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center shrink-0 text-slate-500 font-bold text-xs">
+              NO IMG
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white hover:text-brand-400 transition-colors">
+              {service.title || 'Service Listing'}
+            </h3>
+
+            {isVendorView ? (
+              <p className="text-xs text-slate-400">
+                Customer: <strong className="text-slate-200">{customer.name || 'Customer'}</strong> ({customer.phone || customer.email || 'N/A'})
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400">
+                Vendor: <strong className="text-slate-200">{vendor.businessName || 'Service Vendor'}</strong>
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-1">
+              <span className="inline-flex items-center space-x-1">
+                <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                <span>{new Date(eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              </span>
+
+              {/* Event Domain */}
+              {eventDetails?.guestCount && (
+                <span className="inline-flex items-center space-x-1">
+                  <Users className="w-3.5 h-3.5 text-brand-400" />
+                  <span>{eventDetails.guestCount} Guests</span>
+                </span>
+              )}
+
+              {/* Construction Domain */}
+              {eventDetails?.projectType && (
+                <span className="inline-flex items-center space-x-1 font-semibold text-amber-400">
+                  <span>{eventDetails.projectType}</span>
+                  {eventDetails.area > 0 && <span>({eventDetails.area} {eventDetails.unit || 'sqft'})</span>}
+                </span>
+              )}
+
+              {/* Home Domain */}
+              {eventDetails?.serviceType && (
+                <span className="inline-flex items-center space-x-1 font-semibold text-emerald-400">
+                  <span>{eventDetails.serviceType}</span>
+                </span>
+              )}
+
+              {/* Accommodation Domain */}
+              {eventDetails?.rooms && (
+                <span className="inline-flex items-center space-x-1 font-semibold text-purple-400">
+                  <span>{eventDetails.rooms} Room(s) / {eventDetails.guests || 1} Guest(s)</span>
+                </span>
+              )}
+
+              {packageSelected && (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[11px] font-semibold capitalize">
+                  <Tag className="w-3 h-3 text-emerald-400" />
+                  <span>{packageSelected}</span>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Pricing & Payment Status */}
+        <div className="glass-panel p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between space-y-2 shrink-0">
+          <div>
+            <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Amount</span>
+            <p className="text-xl font-extrabold text-white">
+              ₹{pricing?.totalAmount ? pricing.totalAmount.toLocaleString('en-IN') : '0'}
+            </p>
+            <p className="text-[10px] text-slate-500">Includes 18% GST (₹{pricing?.taxes?.toLocaleString('en-IN') || 0})</p>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+            <span className="text-[11px] text-slate-400">Payment:</span>
+            <span className="text-xs font-semibold uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+              {paymentStatus || 'unpaid'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Controls Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/60">
+        <button
+          onClick={() => onViewDetails && onViewDetails(booking)}
+          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-800 transition-colors flex items-center space-x-1.5"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>View Details</span>
+        </button>
+
+        {/* Vendor Action Transitions */}
+        {isVendorView && (
+          <div className="flex items-center space-x-2">
+            {status === 'pending' && onConfirm && (
+              <button
+                disabled={isLoading}
+                onClick={() => onConfirm(_id)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-emerald-600/20"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Confirm Booking</span>
+              </button>
+            )}
+
+            {status === 'confirmed' && onStart && (
+              <button
+                disabled={isLoading}
+                onClick={() => onStart(_id)}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-purple-600/20"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Start Service</span>
+              </button>
+            )}
+
+            {status === 'in_progress' && onComplete && (
+              <button
+                disabled={isLoading}
+                onClick={() => onComplete(_id)}
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-brand-600/20"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Mark Completed</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default BookingCard;

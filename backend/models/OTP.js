@@ -3,26 +3,32 @@ import mongoose from 'mongoose';
 /**
  * OTP Schema
  * 
- * Short-lived verification tokens for email verification, password resets, and 2FA.
- * Uses a TTL index to automatically purge expired documents.
+ * Short-lived verification tokens for email verification, phone verification,
+ * password resets, and login 2FA.
+ * Stores bcrypt hashed OTPs for security and uses a TTL index to purge expired documents.
  */
 const otpSchema = new mongoose.Schema(
   {
-    identifier: {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+    },
+    email: {
       type: String,
-      required: [true, 'OTP recipient identifier (email or phone) is required'],
+      required: [true, 'Recipient email address is required'],
       lowercase: true,
       trim: true,
     },
     otp: {
       type: String,
-      required: [true, 'OTP code is required'],
+      required: [true, 'Hashed OTP code is required'],
       trim: true,
     },
     type: {
       type: String,
       enum: {
-        values: ['email_verification', 'password_reset', 'login_2fa'],
+        values: ['email_verify', 'phone_verify', 'password_reset', 'login'],
         message: '{VALUE} is not a valid OTP type',
       },
       required: [true, 'OTP type is required'],
@@ -30,11 +36,15 @@ const otpSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      default: () => new Date(Date.now() + 10 * 60 * 1000), // Default 10 minutes TTL
+      default: () => new Date(Date.now() + 10 * 60 * 1000), // 10 minutes TTL
     },
     isUsed: {
       type: Boolean,
       default: false,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
     },
   },
   {
@@ -42,8 +52,9 @@ const otpSchema = new mongoose.Schema(
   }
 );
 
-// Compound Index & Automatic MongoDB TTL Expire Index
-otpSchema.index({ identifier: 1, type: 1 });
+// Indexes for query performance and automatic expiration
+otpSchema.index({ userId: 1, type: 1, isUsed: 1 });
+otpSchema.index({ email: 1, type: 1 });
 otpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const OTP = mongoose.models.OTP || mongoose.model('OTP', otpSchema);

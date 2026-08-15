@@ -4,6 +4,9 @@ import storage from 'redux-persist/lib/storage'; // Uses localStorage for web
 
 import authReducer from './slices/authSlice';
 import uiReducer from './slices/uiSlice';
+import vendorReducer from './slices/vendorSlice';
+import serviceReducer from './slices/serviceSlice';
+import bookingReducer from './slices/bookingSlice';
 
 /**
  * Root Reducer Aggregation
@@ -11,6 +14,9 @@ import uiReducer from './slices/uiSlice';
 const rootReducer = combineReducers({
   auth: authReducer,
   ui: uiReducer,
+  vendor: vendorReducer,
+  service: serviceReducer,
+  booking: bookingReducer,
 });
 
 /**

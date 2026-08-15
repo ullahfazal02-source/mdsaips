@@ -1,7 +1,14 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { registerSchema, loginSchema } from '../validations/user.validation.js';
+import {
+  registerSchema,
+  loginSchema,
+  verifyOtpSchema,
+  resendOtpSchema,
+} from '../validations/user.validation.js';
+import { createOTP, verifyOTP, resendOTP } from '../services/otp.service.js';
+import sendOTPEmail from '../utils/sendOTP.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -68,7 +75,7 @@ export const registerUser = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create User record
+    // Create User record with isEmailVerified = false
     const user = await User.create({
       name,
       email: email.toLowerCase(),
@@ -82,11 +89,133 @@ export const registerUser = async (req, res, next) => {
 
     logger.info(`User registered successfully: [${user._id}] ${user.email} (${user.role})`);
 
+    // Create OTP and send email
+    try {
+      const { plainOtp } = await createOTP(user._id, user.email, 'email_verify');
+      await sendOTPEmail(user.email, user.name, plainOtp);
+    } catch (otpErr) {
+      logger.error(`Error during registration OTP creation/sending: ${otpErr.message}`);
+    }
+
     return res.status(201).json({
       success: true,
-      message: 'Registration successful. Please verify your email.',
+      message: 'Registration successful. Verification code sent to your email.',
       userId: user._id.toString(),
+      email: user.email,
       requiresVerification: true,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Verify OTP for email verification
+ * @route   POST /api/v1/auth/verify-otp
+ * @access  Public
+ */
+export const verifyUserOTP = async (req, res, next) => {
+  try {
+    const { error, value } = verifyOtpSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      const errorMessages = error.details.map((detail) => detail.message);
+      return res.status(400).json({
+        success: false,
+        message: errorMessages[0] || 'Validation failed',
+        errors: errorMessages,
+      });
+    }
+
+    const { userId, otp, type } = value;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Unable to verify this account.',
+      });
+    }
+
+    if (type === 'email_verify' && user.isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Your email is already verified.',
+      });
+    }
+
+    const verificationResult = await verifyOTP(userId, otp, type);
+
+    if (!verificationResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message,
+      });
+    }
+
+    // Mark email as verified
+    if (type === 'email_verify') {
+      user.isEmailVerified = true;
+      await user.save();
+    }
+
+    // Issue JWT Token upon verification
+    const token = generateToken(user._id, user.role);
+
+    logger.info(`User email verified successfully: [${user._id}] ${user.email}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully.',
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Resend OTP verification code
+ * @route   POST /api/v1/auth/resend-otp
+ * @access  Public
+ */
+export const resendUserOTP = async (req, res, next) => {
+  try {
+    const { error, value } = resendOtpSchema.validate(req.body, { abortEarly: false });
+    if (error) {
+      const errorMessages = error.details.map((detail) => detail.message);
+      return res.status(400).json({
+        success: false,
+        message: errorMessages[0] || 'Validation failed',
+        errors: errorMessages,
+      });
+    }
+
+    const { userId, type } = value;
+
+    const result = await resendOTP(userId, null, type);
+
+    if (!result.success) {
+      const statusCode = result.reason === 'cooldown' || result.reason === 'rate_limit' ? 429 : 400;
+      return res.status(statusCode).json({
+        success: false,
+        message: result.message,
+      });
+    }
+
+    // Send email
+    if (result.plainOtp && result.user) {
+      await sendOTPEmail(result.user.email, result.user.name, result.plainOtp);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'A new verification code has been sent.',
     });
   } catch (err) {
     next(err);
@@ -138,11 +267,13 @@ export const loginUser = async (req, res, next) => {
       });
     }
 
-    // Check email verification for Module 3 specification
+    // Check email verification status
     if (!user.isEmailVerified) {
       return res.status(200).json({
         success: false,
         requiresVerification: true,
+        userId: user._id.toString(),
+        email: user.email,
         message: 'Please verify your email before logging in.',
       });
     }

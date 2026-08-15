@@ -54,3 +54,42 @@ export const loginSchema = Joi.object({
     'any.required': 'Password is required',
   }),
 });
+
+/**
+ * Joi Schema for OTP Verification
+ */
+export const verifyOtpSchema = Joi.object({
+  userId: Joi.string().hex().length(24).required().messages({
+    'string.empty': 'User ID is required',
+    'string.length': 'Invalid User ID format',
+    'any.required': 'User ID is required',
+  }),
+  otp: Joi.string().pattern(/^\d{6}$/).required().messages({
+    'string.empty': 'Verification code is required',
+    'string.pattern.base': 'Verification code must be exactly 6 digits',
+    'any.required': 'Verification code is required',
+  }),
+  type: Joi.string()
+    .valid('email_verify', 'phone_verify', 'password_reset', 'login')
+    .default('email_verify')
+    .messages({
+      'any.only': 'Invalid OTP type',
+    }),
+});
+
+/**
+ * Joi Schema for Resending OTP
+ */
+export const resendOtpSchema = Joi.object({
+  userId: Joi.string().hex().length(24).required().messages({
+    'string.empty': 'User ID is required',
+    'string.length': 'Invalid User ID format',
+    'any.required': 'User ID is required',
+  }),
+  type: Joi.string()
+    .valid('email_verify', 'phone_verify', 'password_reset', 'login')
+    .default('email_verify')
+    .messages({
+      'any.only': 'Invalid OTP type',
+    }),
+});

@@ -54,7 +54,12 @@ export const Login = () => {
       });
 
       if (response?.requiresVerification) {
-        navigate('/verify-otp', { state: { email: formData.email } });
+        navigate('/verify-otp', {
+          state: {
+            userId: response.userId,
+            email: response.email || formData.email.trim(),
+          },
+        });
         return;
       }
 

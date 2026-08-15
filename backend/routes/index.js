@@ -6,11 +6,27 @@
 
 import { Router } from 'express';
 import authRoutes from './auth.routes.js';
+import vendorRoutes from './vendor.routes.js';
+import adminRoutes from './admin.routes.js';
+import serviceRoutes from './service.routes.js';
+import bookingRoutes from './booking.routes.js';
 
 const router = Router();
 
 // Mount Authentication Module Routes
 router.use('/auth', authRoutes);
+
+// Mount Vendor Management Module Routes
+router.use('/vendors', vendorRoutes);
+
+// Mount Admin Management Module Routes
+router.use('/admin', adminRoutes);
+
+// Mount Service Listings Module Routes
+router.use('/services', serviceRoutes);
+
+// Mount Booking System Module Routes
+router.use('/bookings', bookingRoutes);
 
 /**
  * @openapi
