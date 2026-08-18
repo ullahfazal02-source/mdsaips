@@ -113,10 +113,14 @@ const bookingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected'],
+        values: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected', 'expired'],
         message: '{VALUE} is not a valid booking status',
       },
       default: 'pending',
+    },
+    responseDeadline: {
+      type: Date,
+      index: true,
     },
     paymentStatus: {
       type: String,

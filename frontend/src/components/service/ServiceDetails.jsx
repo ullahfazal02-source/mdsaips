@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import toast from 'react-hot-toast';
 import {
   Star,
   MapPin,
@@ -16,22 +17,70 @@ import {
   ExternalLink,
   ShieldCheck,
   ArrowRight,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  ShoppingCart,
 } from 'lucide-react';
 import useService from '../../hooks/useService';
+import useReview from '../../hooks/useReview';
+import useCart from '../../hooks/useCart';
+import ReviewSummary from '../review/ReviewSummary';
+import ReviewCard from '../review/ReviewCard';
+import WishlistButton from '../wishlist/WishlistButton';
 
 export const ServiceDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentService, getServiceById, loading, error } = useService();
+  const { getServiceReviews, reviews, ratingSummary, pagination, loading: reviewsLoading } = useReview();
+  const { addItem: addCartItem } = useCart();
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const { currentVendor } = useSelector((state) => state.vendor);
+
   const [selectedImage, setSelectedImage] = useState(null);
   const [activePackage, setActivePackage] = useState('basic');
+  const [sortOption, setSortOption] = useState('recent');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const handleAddToCart = () => {
+    if (!currentService) return;
+
+    // Check own-service protection
+    const userVendorId = currentVendor?._id;
+    const serviceVendorId = currentService.vendorId?._id || currentService.vendorId || currentService.vendor;
+
+    if (userVendorId && serviceVendorId && userVendorId.toString() === serviceVendorId.toString()) {
+      toast.error('You cannot add your own service to cart.');
+      return;
+    }
+
+    const selectedPkgObj = currentService.packages?.find((p) => p.name === activePackage);
+    const itemPrice = selectedPkgObj ? selectedPkgObj.price : currentService.price;
+
+    addCartItem({
+      serviceId: currentService._id,
+      vendorId: serviceVendorId,
+      title: currentService.title,
+      image: (currentService.images && currentService.images[0]) || '',
+      price: itemPrice,
+      priceUnit: currentService.priceUnit,
+      category: currentService.category,
+      vendorName: currentService.vendorId?.businessName || currentService.vendor?.businessName || 'Provider',
+      selectedPackage: activePackage,
+      quantity: 1,
+    });
+
+    toast.success(`"${currentService.title}" (${activePackage.toUpperCase()}) added to Cart!`);
+  };
 
   useEffect(() => {
     if (id) {
       getServiceById(id);
+      getServiceReviews({ serviceId: id, page: currentPage, limit: 5, sort: sortOption });
     }
-  }, [id, getServiceById]);
+  }, [id, getServiceById, getServiceReviews, currentPage, sortOption]);
 
   if (loading && !currentService) {
     return (
@@ -125,6 +174,7 @@ export const ServiceDetails = () => {
                   {subCategory}
                 </span>
               )}
+              <WishlistButton service={currentService} showText={true} />
             </div>
 
             <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">{title}</h1>
@@ -290,6 +340,84 @@ export const ServiceDetails = () => {
                 ))}
             </div>
           )}
+
+          {/* Module 9: Verified Reviews & Rating Breakdown Section */}
+          <div className="space-y-6 pt-4">
+            <ReviewSummary summary={ratingSummary || ratings} />
+
+            {/* Sorting & Header Control Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+              <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+                <MessageSquare className="w-5 h-5 text-brand-400" />
+                <span>Customer Feedback ({pagination.total || reviews.length})</span>
+              </h3>
+
+              {/* Sorting Filter */}
+              <div className="flex items-center space-x-2">
+                <Filter className="w-4 h-4 text-slate-400" />
+                <span className="text-xs text-slate-400 font-semibold">Sort By:</span>
+                <select
+                  value={sortOption}
+                  onChange={(e) => {
+                    setSortOption(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="bg-slate-900 border border-slate-800 text-xs text-slate-200 font-medium px-3 py-1.5 rounded-xl focus:outline-none focus:border-brand-500"
+                >
+                  <option value="recent">Most Recent</option>
+                  <option value="highest">Highest Rated</option>
+                  <option value="lowest">Lowest Rated</option>
+                  <option value="helpful">Most Helpful</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Reviews List */}
+            {reviewsLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent"></div>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="glass-panel p-8 rounded-2xl border border-slate-800 text-center space-y-2">
+                <Star className="w-10 h-10 text-slate-600 mx-auto" />
+                <h4 className="text-base font-bold text-white">No Reviews Yet</h4>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Be the first completed customer to share your verified review for this service.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((rev) => (
+                  <ReviewCard key={rev._id} review={rev} isVendorView={false} />
+                ))}
+
+                {/* Pagination Controls */}
+                {pagination.pages > 1 && (
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                    <span className="text-xs text-slate-400">
+                      Page {pagination.page} of {pagination.pages}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        disabled={currentPage <= 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 disabled:opacity-40 hover:text-white"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        disabled={currentPage >= pagination.pages}
+                        onClick={() => setCurrentPage((p) => Math.min(pagination.pages, p + 1))}
+                        className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 disabled:opacity-40 hover:text-white"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column: Vendor Overview Card & Booking CTA */}
@@ -341,20 +469,30 @@ export const ServiceDetails = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                const targetUrl = `/booking?serviceId=${id}&package=${activePackage}`;
-                if (!isAuthenticated) {
-                  navigate(`/login?redirect=${encodeURIComponent(targetUrl)}`);
-                } else {
-                  navigate(targetUrl);
-                }
-              }}
-              className="w-full py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-sm shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center space-x-2"
-            >
-              <span>Book Now</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={handleAddToCart}
+                className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center justify-center space-x-2"
+              >
+                <ShoppingCart className="w-4 h-4 text-brand-400" />
+                <span>Add to Cart</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const targetUrl = `/booking?serviceId=${id}&package=${activePackage}`;
+                  if (!isAuthenticated) {
+                    navigate(`/login?redirect=${encodeURIComponent(targetUrl)}`);
+                  } else {
+                    navigate(targetUrl);
+                  }
+                }}
+                className="w-full py-3.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-sm shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center space-x-2"
+              >
+                <span>Book Now</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

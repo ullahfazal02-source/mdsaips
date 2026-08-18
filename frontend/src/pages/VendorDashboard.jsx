@@ -24,7 +24,10 @@ import {
 import useVendor from '../hooks/useVendor';
 import useService from '../hooks/useService';
 import useBooking from '../hooks/useBooking';
+import useReview from '../hooks/useReview';
 import BookingCard from '../components/booking/BookingCard';
+import ReviewCard from '../components/review/ReviewCard';
+import ReviewSummary from '../components/review/ReviewSummary';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { updateUserRole } from '../app/slices/authSlice';
@@ -57,6 +60,13 @@ export const VendorDashboard = () => {
     completeBooking,
     loading: bookingLoading,
   } = useBooking();
+
+  const {
+    getVendorReviews,
+    reviews: vendorReceivedReviews,
+    ratingSummary: vendorRatingSummary,
+    loading: reviewsLoading,
+  } = useReview();
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
@@ -106,6 +116,13 @@ export const VendorDashboard = () => {
     fetchVendorData();
   }, [fetchVendorData]);
 
+  useEffect(() => {
+    const vId = dashboardStats?.vendorId || currentVendor?._id;
+    if (vId && activeTab === 'reviews') {
+      getVendorReviews({ vendorId: vId });
+    }
+  }, [activeTab, dashboardStats, currentVendor, getVendorReviews]);
+
   const handleVendorConfirmBooking = async (id) => {
     setActionLoadingId(id);
     const res = await confirmBooking(id);
@@ -117,6 +134,20 @@ export const VendorDashboard = () => {
       getDashboardStats();
     } else {
       setStatusMsg({ type: 'error', text: res.error || 'Failed to confirm booking.' });
+    }
+  };
+
+  const handleVendorRejectBooking = async (id) => {
+    setActionLoadingId(id);
+    const res = await rejectBooking(id, 'Vendor unable to fulfill request at this time');
+    setActionLoadingId(null);
+    if (res.success) {
+      setStatusMsg({ type: 'success', text: 'Booking request rejected.' });
+      fetchVendorRequests();
+      fetchVendorBookings();
+      getDashboardStats();
+    } else {
+      setStatusMsg({ type: 'error', text: res.error || 'Failed to reject booking.' });
     }
   };
 
@@ -493,6 +524,7 @@ export const VendorDashboard = () => {
         {[
           { id: 'requests', label: `Pending Requests (${vendorRequests.length})`, icon: Clock },
           { id: 'bookings', label: `All Bookings (${vendorBookings.length})`, icon: Calendar },
+          { id: 'reviews', label: 'Reviews Received', icon: Star },
           { id: 'services', label: 'My Services', icon: PackageIcon },
           { id: 'profile', label: 'Business Profile', icon: Building },
           { id: 'availability', label: 'Availability', icon: Calendar },
@@ -544,6 +576,7 @@ export const VendorDashboard = () => {
                   booking={request}
                   isVendorView={true}
                   onConfirm={handleVendorConfirmBooking}
+                  onReject={handleVendorRejectBooking}
                   onViewDetails={(b) => navigate(`/booking/${b._id}`)}
                   loadingActionId={actionLoadingId}
                 />
@@ -587,6 +620,48 @@ export const VendorDashboard = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB: REVIEWS RECEIVED */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6">
+          <ReviewSummary summary={vendorRatingSummary || currentVendor?.ratings} />
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+              <Star className="w-5 h-5 text-amber-400" />
+              <span>Customer Reviews Received ({vendorReceivedReviews.length})</span>
+            </h3>
+
+            {reviewsLoading ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent"></div>
+              </div>
+            ) : vendorReceivedReviews.length === 0 ? (
+              <div className="glass-panel p-12 rounded-3xl border border-slate-800 text-center space-y-3">
+                <Star className="w-10 h-10 text-slate-600 mx-auto" />
+                <h3 className="text-base font-bold text-white">No Reviews Received Yet</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  Reviews from completed bookings will automatically appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {vendorReceivedReviews.map((rev) => (
+                  <ReviewCard
+                    key={rev._id}
+                    review={rev}
+                    isVendorView={true}
+                    onReplySubmitted={() => {
+                      const vId = dashboardStats?.vendorId || currentVendor?._id;
+                      if (vId) getVendorReviews({ vendorId: vId });
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

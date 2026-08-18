@@ -10,6 +10,9 @@ import vendorRoutes from './vendor.routes.js';
 import adminRoutes from './admin.routes.js';
 import serviceRoutes from './service.routes.js';
 import bookingRoutes from './booking.routes.js';
+import paymentRoutes from './payment.routes.js';
+import reviewRoutes from './review.routes.js';
+import wishlistRoutes from './wishlist.routes.js';
 
 const router = Router();
 
@@ -27,6 +30,15 @@ router.use('/services', serviceRoutes);
 
 // Mount Booking System Module Routes
 router.use('/bookings', bookingRoutes);
+
+// Mount Payment System Module Routes
+router.use('/payments', paymentRoutes);
+
+// Mount Reviews & Ratings Module Routes
+router.use('/reviews', reviewRoutes);
+
+// Mount Wishlist System Module Routes
+router.use('/wishlist', wishlistRoutes);
 
 /**
  * @openapi

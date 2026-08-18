@@ -10,6 +10,7 @@ import {
   confirmBooking as confirmBookingThunk,
   startBooking as startBookingThunk,
   completeBooking as completeBookingThunk,
+  rejectBooking as rejectBookingThunk,
   clearBookingError,
   resetCurrentBooking,
 } from '../app/slices/bookingSlice';
@@ -118,6 +119,17 @@ export const useBooking = () => {
     [dispatch]
   );
 
+  const rejectBooking = useCallback(
+    async (id, reason) => {
+      const result = await dispatch(rejectBookingThunk({ id, reason }));
+      if (rejectBookingThunk.fulfilled.match(result)) {
+        return { success: true, data: result.payload?.data };
+      }
+      return { success: false, error: result.payload };
+    },
+    [dispatch]
+  );
+
   const clearError = useCallback(() => {
     dispatch(clearBookingError());
   }, [dispatch]);
@@ -142,6 +154,7 @@ export const useBooking = () => {
     fetchVendorBookings,
     fetchVendorRequests,
     confirmBooking,
+    rejectBooking,
     startBooking,
     completeBooking,
     clearError,

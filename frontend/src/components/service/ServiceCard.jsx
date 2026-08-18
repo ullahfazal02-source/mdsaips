@@ -1,6 +1,7 @@
 import React from 'react';
 import { Star, MapPin, CheckCircle2, Tag, ArrowRight, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import WishlistButton from '../wishlist/WishlistButton';
 
 /**
  * Reusable Service Card Component
@@ -82,15 +83,10 @@ export const ServiceCard = ({ service }) => {
             </span>
           </div>
 
-          {/* Package Count Pill */}
-          {packages && packages.length > 0 && (
-            <div className="absolute top-3 right-3">
-              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30 backdrop-blur-md">
-                <Layers className="w-3 h-3" />
-                <span>{packages.length} Packages</span>
-              </span>
-            </div>
-          )}
+          {/* Wishlist Button in Top Right */}
+          <div className="absolute top-3 right-3 z-10">
+            <WishlistButton service={service} showText={false} className="shadow-lg backdrop-blur-md" />
+          </div>
 
           {/* Rating Tag */}
           <div className="absolute bottom-3 left-3 flex items-center space-x-1 bg-amber-500/20 px-2 py-1 rounded-lg border border-amber-500/30 backdrop-blur-md">

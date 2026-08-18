@@ -113,6 +113,18 @@ export const completeBooking = createAsyncThunk(
   }
 );
 
+export const rejectBooking = createAsyncThunk(
+  'booking/rejectBooking',
+  async ({ id, reason }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/bookings/${id}/reject`, { reason });
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to reject booking request');
+    }
+  }
+);
+
 const initialState = {
   bookings: [],
   currentBooking: null,

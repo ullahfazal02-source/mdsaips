@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useParams, useNavigate, Link } from 'react-router-dom';
-import { CalendarCheck, ShieldCheck, ArrowLeft, Info, CheckCircle2, Clock } from 'lucide-react';
+import { CalendarCheck, ShieldCheck, ArrowLeft, Info, CheckCircle2, Clock, Star, X } from 'lucide-react';
 import useService from '../hooks/useService';
 import useBooking from '../hooks/useBooking';
 import BookingForm from '../components/booking/BookingForm';
 import BookingCard from '../components/booking/BookingCard';
 import BookingStatus from '../components/booking/BookingStatus';
+import PaymentSummary from '../components/payment/PaymentSummary';
+import PaymentButton from '../components/payment/PaymentButton';
+import ReviewForm from '../components/review/ReviewForm';
 
 export const Booking = () => {
   const { id } = useParams(); // If viewing /booking/:id
@@ -21,6 +24,7 @@ export const Booking = () => {
 
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [createdBookingData, setCreatedBookingData] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Load Service if creating booking with serviceId
   useEffect(() => {
@@ -42,6 +46,10 @@ export const Booking = () => {
       setCreatedBookingData(res.data);
       setBookingSuccess(true);
     }
+  };
+
+  const handleRefreshBooking = () => {
+    if (id) fetchBooking(id);
   };
 
   // 1. Success Screen after booking creation
@@ -147,8 +155,60 @@ export const Booking = () => {
             <BookingStatus status={currentBooking.status} timeline={currentBooking.timeline} />
           </div>
 
-          <BookingCard booking={currentBooking} onViewDetails={null} />
+          <BookingCard
+            booking={currentBooking}
+            onViewDetails={null}
+            onPaymentSuccess={handleRefreshBooking}
+            onOpenReviewModal={() => setShowReviewModal(true)}
+          />
+
+          {/* Payment Summary Section */}
+          <div className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <PaymentSummary booking={currentBooking} className="md:col-span-2" />
+
+            {/* Pay Now Callout */}
+            <div className="glass-card p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-4 text-center">
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-white">Payment Operations</h4>
+                <p className="text-xs text-slate-400">
+                  {currentBooking.paymentStatus === 'paid'
+                    ? 'Payment has been successfully received and verified.'
+                    : 'Process your payment securely via Razorpay TEST mode.'}
+                </p>
+              </div>
+
+              {currentBooking.paymentStatus !== 'paid' && ['pending', 'confirmed'].includes(currentBooking.status) && (
+                <PaymentButton
+                  booking={currentBooking}
+                  onPaymentSuccess={handleRefreshBooking}
+                  className="w-full py-3"
+                />
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Leave Review Modal */}
+        {showReviewModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="relative w-full max-w-xl">
+              <button
+                onClick={() => setShowReviewModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white p-2 rounded-full bg-slate-900 border border-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <ReviewForm
+                booking={currentBooking}
+                onReviewSubmitted={() => {
+                  setShowReviewModal(false);
+                  handleRefreshBooking();
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
     );
   }

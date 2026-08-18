@@ -16,6 +16,9 @@ import AIPlanner from '@/pages/AIPlanner';
 import Booking from '@/pages/Booking';
 import Profile from '@/pages/Profile';
 import VendorProfile from '@/components/vendor/VendorProfile';
+import Wishlist from '@/pages/Wishlist';
+import Cart from '@/pages/Cart';
+import CartCheckout from '@/pages/CartCheckout';
 
 /**
  * React Router Application Architecture
@@ -54,6 +57,30 @@ export const AppRouter = () => {
             }
           />
           <Route
+            path="wishlist"
+            element={
+              <ProtectedRoute>
+                <Wishlist />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="cart"
+            element={
+              <ProtectedRoute>
+                <Cart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="cart/checkout"
+            element={
+              <ProtectedRoute>
+                <CartCheckout />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="profile"
             element={
               <ProtectedRoute>
@@ -87,6 +114,7 @@ export const AppRouter = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="admin" element={<Navigate to="/admin-dashboard" replace />} />
 
           {/* Catch-all fallback redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />

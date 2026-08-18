@@ -7,6 +7,10 @@ import uiReducer from './slices/uiSlice';
 import vendorReducer from './slices/vendorSlice';
 import serviceReducer from './slices/serviceSlice';
 import bookingReducer from './slices/bookingSlice';
+import paymentReducer from './slices/paymentSlice';
+import reviewReducer from './slices/reviewSlice';
+import wishlistReducer from './slices/wishlistSlice';
+import cartReducer from './slices/cartSlice';
 
 /**
  * Root Reducer Aggregation
@@ -17,6 +21,10 @@ const rootReducer = combineReducers({
   vendor: vendorReducer,
   service: serviceReducer,
   booking: bookingReducer,
+  payment: paymentReducer,
+  review: reviewReducer,
+  wishlist: wishlistReducer,
+  cart: cartReducer,
 });
 
 /**
@@ -26,7 +34,7 @@ const persistConfig = {
   key: 'mdsaips_root',
   version: 1,
   storage,
-  whitelist: ['auth', 'ui'], // Persist auth state and UI preferences
+  whitelist: ['auth', 'ui', 'cart'], // Persist auth state, UI preferences, and shopping cart
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

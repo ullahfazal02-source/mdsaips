@@ -112,3 +112,65 @@ export const verifyVendor = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * @desc    Get Real Platform Statistics for Admin Panel
+ * @route   GET /api/v1/admin/stats
+ * @access  Private (Admin)
+ */
+export const getAdminStats = async (req, res, next) => {
+  try {
+    const { User, Vendor, Service, Booking, Payment } = await import('../models/index.js');
+
+    const [
+      totalUsers,
+      totalCustomers,
+      totalVendors,
+      verifiedVendors,
+      pendingVendors,
+      totalServices,
+      activeServices,
+      totalBookings,
+      completedBookings,
+      pendingBookings,
+      payments,
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ role: 'customer' }),
+      Vendor.countDocuments(),
+      Vendor.countDocuments({ isVerified: true }),
+      Vendor.countDocuments({ isVerified: false }),
+      Service.countDocuments(),
+      Service.countDocuments({ isActive: true }),
+      Booking.countDocuments(),
+      Booking.countDocuments({ status: 'completed' }),
+      Booking.countDocuments({ status: 'pending' }),
+      Payment.aggregate([
+        { $match: { status: 'completed' } },
+        { $group: { _id: null, totalRevenue: { $sum: '$amount' } } },
+      ]),
+    ]);
+
+    const totalRevenue = payments.length > 0 ? payments[0].totalRevenue : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalUsers,
+        totalCustomers,
+        totalVendors,
+        verifiedVendors,
+        pendingVendors,
+        totalServices,
+        activeServices,
+        totalBookings,
+        completedBookings,
+        pendingBookings,
+        totalRevenue,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+

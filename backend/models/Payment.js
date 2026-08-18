@@ -1,10 +1,9 @@
 import mongoose from 'mongoose';
 
 /**
- * Payment Schema
+ * Payment Schema - Module 8 Financial System
  * 
- * Financial records for transactions processed against Bookings.
- * Tracks payment gateways, transaction IDs, statuses, and payment types.
+ * Razorpay TEST Mode payments and transaction records for Bookings.
  */
 const paymentSchema = new mongoose.Schema(
   {
@@ -12,30 +11,19 @@ const paymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Booking',
       required: [true, 'Payment must be associated with a Booking'],
+      index: true,
     },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Payment must record a customer'],
+      index: true,
     },
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vendor',
       required: [true, 'Payment must record a vendor'],
-    },
-    transactionId: {
-      type: String,
-      required: [true, 'Transaction ID is required'],
-      unique: true,
-      trim: true,
-    },
-    paymentGateway: {
-      type: String,
-      enum: {
-        values: ['stripe', 'paypal', 'razorpay', 'bank_transfer', 'cash'],
-        message: '{VALUE} is not a supported payment gateway',
-      },
-      default: 'razorpay',
+      index: true,
     },
     amount: {
       type: Number,
@@ -45,35 +33,75 @@ const paymentSchema = new mongoose.Schema(
     currency: {
       type: String,
       default: 'INR',
+      trim: true,
     },
-    paymentType: {
+    razorpayOrderId: {
       type: String,
-      enum: {
-        values: ['deposit', 'full', 'balance', 'refund'],
-        message: '{VALUE} is not a valid payment type',
-      },
-      default: 'full',
+      required: [true, 'Razorpay Order ID is required'],
+      trim: true,
+      index: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    razorpaySignature: {
+      type: String,
+      trim: true,
+      default: null,
     },
     status: {
       type: String,
       enum: {
-        values: ['pending', 'successful', 'failed', 'refunded'],
+        values: ['created', 'paid', 'failed', 'refunded', 'partial_refund'],
         message: '{VALUE} is not a valid payment status',
       },
-      default: 'pending',
+      default: 'created',
+      index: true,
     },
-    gatewayResponse: mongoose.Schema.Types.Mixed,
+    refundAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Refund amount cannot be negative'],
+    },
+    refundId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    paymentGateway: {
+      type: String,
+      default: 'razorpay',
+    },
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-// Performance & Unique Indexes
-paymentSchema.index({ booking: 1 });
-paymentSchema.index({ customer: 1 });
-paymentSchema.index({ vendor: 1 });
-paymentSchema.index({ status: 1 });
+// Virtual aliases for clean API access
+paymentSchema.virtual('bookingId').get(function () {
+  return this.booking;
+}).set(function (val) {
+  this.booking = val;
+});
+
+paymentSchema.virtual('customerId').get(function () {
+  return this.customer;
+}).set(function (val) {
+  this.customer = val;
+});
+
+paymentSchema.virtual('vendorId').get(function () {
+  return this.vendor;
+}).set(function (val) {
+  this.vendor = val;
+});
+
+paymentSchema.index({ createdAt: -1 });
 
 export const Payment = mongoose.models.Payment || mongoose.model('Payment', paymentSchema);
 export default Payment;

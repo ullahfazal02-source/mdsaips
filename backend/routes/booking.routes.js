@@ -8,6 +8,7 @@ import {
   confirmBooking,
   startBooking,
   completeBooking,
+  rejectBooking,
 } from '../controllers/booking.controller.js';
 import protect from '../middleware/auth.middleware.js';
 import authorizeRoles from '../middleware/role.middleware.js';
@@ -278,5 +279,28 @@ router.put('/:id/start', protect, authorizeRoles('vendor', 'customer', 'admin'),
  *         description: Booking must be in_progress first
  */
 router.put('/:id/complete', protect, authorizeRoles('vendor', 'customer', 'admin'), completeBooking);
+
+/**
+ * @openapi
+ * /bookings/{id}/reject:
+ *   put:
+ *     summary: Vendor rejects a pending booking request
+ *     tags: [Bookings]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Booking request rejected
+ *       400:
+ *         description: Booking must be pending first
+ *     
+ */
+router.put('/:id/reject', protect, authorizeRoles('vendor', 'customer', 'admin'), rejectBooking);
 
 export default router;

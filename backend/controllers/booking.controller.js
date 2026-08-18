@@ -267,6 +267,7 @@ export const createBooking = async (req, res, next) => {
       eventDetails: sanitizedDetails,
       pricing,
       status: 'pending',
+      responseDeadline: new Date(Date.now() + 60 * 60 * 1000), // 1 hour vendor response window
       paymentStatus: 'unpaid',
       notes: notes || '',
       timeline,
@@ -717,3 +718,68 @@ export const completeBooking = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Vendor rejects a pending booking request
+ * @route   PUT /api/v1/bookings/:id/reject
+ * @access  Private (Vendor)
+ */
+export const rejectBooking = async (req, res, next) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const { id } = req.params;
+    const { reason = 'Vendor unable to fulfill request at this time' } = req.body;
+
+    const vendor = await Vendor.findOne({ userId });
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found.',
+      });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    if (booking.vendorId.toString() !== vendor._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only reject your own booking requests.',
+      });
+    }
+
+    if (booking.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Booking cannot be rejected from current status: '${booking.status}'.`,
+      });
+    }
+
+    booking.status = 'rejected';
+    booking.cancellationReason = reason;
+    booking.timeline.push({
+      status: 'rejected',
+      message: `Booking request rejected by vendor: ${reason}`,
+      timestamp: new Date(),
+    });
+
+    await booking.save();
+
+    logger.info(`Booking [${booking.bookingNumber}] rejected by vendor [${vendor._id}]`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Booking request rejected successfully.',
+      data: booking,
+    });
+  } catch (error) {
+    logger.error(`Error rejecting booking [${req.params.id}]: ${error.message}`);
+    next(error);
+  }
+};
+

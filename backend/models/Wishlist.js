@@ -1,36 +1,65 @@
 import mongoose from 'mongoose';
 
 /**
+ * Wishlist Item Sub-schema
+ */
+const wishlistItemSchema = new mongoose.Schema(
+  {
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Service',
+      required: [true, 'Wishlist item must specify a serviceId'],
+    },
+    vendorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vendor',
+      required: [true, 'Wishlist item must specify a vendorId'],
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: [300, 'Note cannot exceed 300 characters'],
+    },
+  },
+  { _id: true }
+);
+
+/**
  * Wishlist Schema
  * 
- * Customer saved services and favorites with compound unique constraints.
+ * One Wishlist document per user containing an array of saved service items.
  */
 const wishlistSchema = new mongoose.Schema(
   {
-    user: {
+    customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Wishlist item must belong to a User'],
+      required: [true, 'Wishlist must belong to a Customer (User)'],
+      unique: true,
     },
-    service: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Service',
-      required: [true, 'Wishlist item must refer to a Service'],
-    },
-    notes: {
-      type: String,
-      trim: true,
-      maxlength: [300, 'Notes cannot exceed 300 characters'],
-    },
+    items: [wishlistItemSchema],
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-// Compound Unique Index: Prevent duplicate saved services for same user
-wishlistSchema.index({ user: 1, service: 1 }, { unique: true });
-wishlistSchema.index({ user: 1 });
+// Virtual Getter mapping user -> customerId
+wishlistSchema.virtual('user').get(function () {
+  return this.customerId;
+});
 
 export const Wishlist = mongoose.models.Wishlist || mongoose.model('Wishlist', wishlistSchema);
+
+// Clean up legacy MongoDB Atlas collection indexes if present
+Wishlist.collection.dropIndex('user_1_service_1').catch(() => {});
+Wishlist.collection.dropIndex('user_1').catch(() => {});
+
 export default Wishlist;

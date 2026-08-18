@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, CheckCircle2, ShieldCheck, Tag, AlertCircle } from 'lucide-react';
-import DomainBookingFields from './DomainBookingFields';
+import DomainBookingDetails from './DomainBookingDetails';
 
 /**
  * BookingForm Component for Multi-Domain Customer Service Reservation
@@ -180,11 +180,10 @@ export const BookingForm = ({ service, initialPackage, onSubmit, loading, error 
 
       {/* 3. DYNAMIC DOMAIN-SPECIFIC BOOKING FIELDS */}
       <div className="glass-card p-6 md:p-8 rounded-2xl border border-slate-800 space-y-6">
-        <DomainBookingFields
+        <DomainBookingDetails
           category={category}
           formData={formData}
-          onChange={handleFieldChange}
-          todayStr={todayStr}
+          onChange={(newFields) => setFormData(newFields)}
         />
 
         {/* Additional Notes for Vendor */}

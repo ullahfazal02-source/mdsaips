@@ -1,19 +1,43 @@
 import React from 'react';
-import { Calendar, MapPin, Users, Check, Play, CheckCircle, Eye, Tag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Check,
+  Play,
+  CheckCircle,
+  Eye,
+  Tag,
+  Star,
+  Sparkles,
+  Clock,
+  AlertTriangle,
+  XCircle,
+  ArrowRight,
+} from 'lucide-react';
 import BookingStatus from './BookingStatus';
+import PaymentStatus from '../payment/PaymentStatus';
+import PaymentButton from '../payment/PaymentButton';
 
 /**
  * BookingCard Component for Customer & Vendor Dashboards
+ * Features 1-Hour Response Countdown, Expired Booking CTA, and Vendor Action Triggers
  */
 export const BookingCard = ({
   booking,
   isVendorView = false,
   onConfirm,
+  onReject,
   onStart,
   onComplete,
   onViewDetails,
+  onOpenReviewModal,
+  onPaymentSuccess,
   loadingActionId,
 }) => {
+  const navigate = useNavigate();
+
   if (!booking) return null;
 
   const {
@@ -27,7 +51,9 @@ export const BookingCard = ({
     packageSelected,
     pricing,
     status,
-    paymentStatus,
+    responseDeadline,
+    paymentStatus = 'unpaid',
+    isReviewed = false,
   } = booking;
 
   const service = serviceId || {};
@@ -36,16 +62,39 @@ export const BookingCard = ({
 
   const isLoading = loadingActionId === _id;
 
+  // Calculate 1-hour vendor response deadline countdown
+  let remainingMinutes = null;
+  if (status === 'pending' && responseDeadline) {
+    const diffMs = new Date(responseDeadline).getTime() - Date.now();
+    remainingMinutes = Math.max(0, Math.floor(diffMs / (1000 * 60)));
+  }
+
+  const handleFindAnotherVendor = () => {
+    const categoryQuery = service.category ? `?category=${service.category}` : '';
+    navigate(`/services${categoryQuery}`);
+  };
+
   return (
     <div className="glass-card p-6 rounded-2xl border border-slate-800 hover:border-slate-700 transition-all duration-300 space-y-5">
-      {/* Top Bar: Booking Number & Status Badge */}
+      {/* Top Bar: Booking Number, Booking Status, Response Countdown & Payment Badge */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
         <div>
           <span className="text-[11px] font-mono text-slate-400 uppercase block">Booking Reference</span>
           <span className="text-sm font-extrabold text-white font-mono">{bookingNumber}</span>
         </div>
 
-        <BookingStatus status={status} showTimeline={false} />
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          {/* Response Countdown Badge for Pending Bookings */}
+          {status === 'pending' && remainingMinutes !== null && (
+            <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold flex items-center space-x-1.5 animate-pulse">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Respond within {remainingMinutes} min</span>
+            </span>
+          )}
+
+          <BookingStatus status={status} showTimeline={false} />
+          <PaymentStatus status={paymentStatus} />
+        </div>
       </div>
 
       {/* Main Details Grid */}
@@ -125,7 +174,7 @@ export const BookingCard = ({
           </div>
         </div>
 
-        {/* Pricing & Payment Status */}
+        {/* Pricing & Payment Box */}
         <div className="glass-panel p-4 rounded-xl border border-slate-800/80 flex flex-col justify-between space-y-2 shrink-0">
           <div>
             <span className="text-[11px] font-semibold text-slate-400 uppercase block">Total Amount</span>
@@ -137,12 +186,33 @@ export const BookingCard = ({
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
             <span className="text-[11px] text-slate-400">Payment:</span>
-            <span className="text-xs font-semibold uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-              {paymentStatus || 'unpaid'}
-            </span>
+            <PaymentStatus status={paymentStatus} />
           </div>
         </div>
       </div>
+
+      {/* Part 11: Expired / Rejected Customer Notice Banner */}
+      {!isVendorView && (status === 'expired' || status === 'rejected') && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start space-x-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-300">
+                {status === 'expired' ? 'Vendor did not respond within the required 1-hour time window.' : 'Vendor rejected this booking request.'}
+              </p>
+              <p className="text-slate-400 text-[11px]">You can easily select and book another verified vendor for your project.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleFindAnotherVendor}
+            className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-extrabold transition-all flex items-center space-x-1.5 shrink-0"
+          >
+            <span>Find Another Vendor</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Action Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/60">
@@ -154,43 +224,83 @@ export const BookingCard = ({
           <span>View Details</span>
         </button>
 
-        {/* Vendor Action Transitions */}
-        {isVendorView && (
-          <div className="flex items-center space-x-2">
-            {status === 'pending' && onConfirm && (
-              <button
-                disabled={isLoading}
-                onClick={() => onConfirm(_id)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-emerald-600/20"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Confirm Booking</span>
-              </button>
-            )}
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          {/* Customer Pay Now Button */}
+          {!isVendorView && paymentStatus !== 'paid' && ['pending', 'confirmed'].includes(status) && (
+            <PaymentButton booking={booking} onPaymentSuccess={onPaymentSuccess} />
+          )}
 
-            {status === 'confirmed' && onStart && (
+          {/* Customer Review Button */}
+          {!isVendorView && status === 'completed' && (
+            isReviewed ? (
+              <span className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-bold flex items-center space-x-1">
+                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                <span>Review Submitted</span>
+              </span>
+            ) : (
               <button
-                disabled={isLoading}
-                onClick={() => onStart(_id)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-purple-600/20"
+                onClick={() => onOpenReviewModal && onOpenReviewModal(booking)}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-extrabold transition-all flex items-center space-x-1.5 shadow-md shadow-amber-500/20"
               >
-                <Play className="w-3.5 h-3.5" />
-                <span>Start Service</span>
+                <Star className="w-3.5 h-3.5 fill-slate-950" />
+                <span>Leave Review</span>
               </button>
-            )}
+            )
+          )}
 
-            {status === 'in_progress' && onComplete && (
-              <button
-                disabled={isLoading}
-                onClick={() => onComplete(_id)}
-                className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-brand-600/20"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>Mark Completed</span>
-              </button>
-            )}
-          </div>
-        )}
+          {/* Vendor Action Transitions */}
+          {isVendorView && (
+            <>
+              {status === 'pending' && (
+                <div className="flex items-center space-x-2">
+                  {onConfirm && (
+                    <button
+                      disabled={isLoading}
+                      onClick={() => onConfirm(_id)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-emerald-600/20"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Accept</span>
+                    </button>
+                  )}
+
+                  {onReject && (
+                    <button
+                      disabled={isLoading}
+                      onClick={() => onReject(_id)}
+                      className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Reject</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {status === 'confirmed' && onStart && (
+                <button
+                  disabled={isLoading}
+                  onClick={() => onStart(_id)}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-purple-600/20"
+                >
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Start Service</span>
+                </button>
+              )}
+
+              {status === 'in_progress' && onComplete && (
+                <button
+                  disabled={isLoading}
+                  onClick={() => onComplete(_id)}
+                  className="px-4 py-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-brand-600/20"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Mark Completed</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

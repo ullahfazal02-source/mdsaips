@@ -12,17 +12,19 @@ dotenv.config();
 import app from './app.js';
 import connectDB from './config/db.js';
 import logger from './utils/logger.js';
+import initBookingExpiryCron from './jobs/bookingExpiryCron.js';
 
 // Pre-load all 12 Mongoose Models into Mongoose registry
 import './models/index.js';
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Initialize Server Lifecycle
 const startServer = async () => {
   try {
     // Connect to MongoDB Atlas / Local Instance
     await connectDB();
+    initBookingExpiryCron();
   } catch (err) {
     logger.error(`Database connection failure: ${err.message}. Aborting startup.`);
     process.exit(1);

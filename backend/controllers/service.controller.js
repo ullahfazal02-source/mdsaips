@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Service from '../models/Service.js';
 import Vendor from '../models/Vendor.js';
 import logger from '../utils/logger.js';
@@ -15,8 +16,12 @@ import {
 export const createService = async (req, res, next) => {
   try {
     // 1. Check if user has an active Vendor profile
+    const userIdObj = mongoose.Types.ObjectId.isValid(req.user.id)
+      ? new mongoose.Types.ObjectId(req.user.id)
+      : req.user.id;
+
     const vendor = await Vendor.findOne({
-      $or: [{ userId: req.user.id }, { user: req.user.id }],
+      $or: [{ userId: req.user.id }, { user: req.user.id }, { userId: userIdObj }, { user: userIdObj }],
     });
 
     if (!vendor) {

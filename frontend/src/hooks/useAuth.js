@@ -1,5 +1,7 @@
 import { useSelector, useDispatch } from 'react-redux';
 import { setCredentials, logout, setAuthLoading, setAuthError, clearAuthError } from '@/app/slices/authSlice';
+import { resetWishlistState } from '@/app/slices/wishlistSlice';
+import { clearCart } from '@/app/slices/cartSlice';
 import axiosInstance from '@/api/axiosInstance';
 import toast from 'react-hot-toast';
 
@@ -114,7 +116,9 @@ export const useAuth = () => {
       // Proceed with client side cleanup regardless of server response
     } finally {
       dispatch(logout());
-      toast.success('Logged out successfully');
+      dispatch(resetWishlistState());
+      dispatch(clearCart());
+      toast.success('Logged out successfully.');
     }
   };
 
