@@ -51,6 +51,7 @@ router.post('/', submitReview);
  *     tags: [Reviews]
  */
 router.put('/:id/reply', replyToReview);
+router.post('/:id/reply', replyToReview);
 
 /**
  * @openapi

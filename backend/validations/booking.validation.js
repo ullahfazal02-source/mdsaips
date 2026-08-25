@@ -16,52 +16,48 @@ export const createBookingSchema = Joi.object({
     'any.required': 'Service ID is required',
     'string.empty': 'Service ID cannot be empty',
   }),
-  packageSelected: Joi.string()
-    .valid('basic', 'standard', 'premium')
-    .optional()
-    .allow('', null),
-  eventDate: Joi.date().iso().optional().allow('', null),
+  packageSelected: Joi.string().optional().allow('', null).trim(),
+  eventDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
   notes: Joi.string().optional().allow('', null).max(1000).trim(),
 
   // Flexible / Domain-Specific Booking Details Object
   eventDetails: Joi.object({
     // --- EVENT DOMAIN ---
     eventType: Joi.string().optional().allow('', null).trim(),
-    guestCount: Joi.number().integer().min(1).optional(),
+    guestCount: Joi.number().integer().min(1).optional().allow(null, ''),
     venue: Joi.string().optional().allow('', null).trim(),
     address: Joi.string().optional().allow('', null).trim(),
 
     // --- CONSTRUCTION DOMAIN ---
     projectType: Joi.string().optional().allow('', null).trim(),
     propertyType: Joi.string().optional().allow('', null).trim(),
-    area: Joi.number().min(0).optional(),
+    area: Joi.number().min(0).optional().allow(null, ''),
     unit: Joi.string().optional().allow('', null).trim(),
     projectLocation: Joi.string().optional().allow('', null).trim(),
-    estimatedBudget: Joi.number().min(0).optional(),
-    preferredStartDate: Joi.date().iso().optional().allow('', null),
+    estimatedBudget: Joi.number().min(0).optional().allow(null, ''),
+    preferredStartDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
     projectDescription: Joi.string().optional().allow('', null).trim(),
 
     // --- HOME SERVICES DOMAIN ---
     serviceType: Joi.string().optional().allow('', null).trim(),
     problemDescription: Joi.string().optional().allow('', null).trim(),
-    preferredDate: Joi.date().iso().optional().allow('', null),
+    preferredDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
     preferredTime: Joi.string().optional().allow('', null).trim(),
     serviceAddress: Joi.string().optional().allow('', null).trim(),
     urgency: Joi.string().optional().allow('', null).trim(),
 
     // --- ACCOMMODATION DOMAIN ---
-    checkInDate: Joi.date().iso().optional().allow('', null),
-    checkOutDate: Joi.date().iso().optional().allow('', null),
-    guests: Joi.number().integer().min(1).optional(),
-    rooms: Joi.number().integer().min(1).optional(),
+    checkInDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+    checkOutDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
+    guests: Joi.number().integer().min(1).optional().allow(null, ''),
+    rooms: Joi.number().integer().min(1).optional().allow(null, ''),
     guestDetails: Joi.string().optional().allow('', null).trim(),
     specialRequests: Joi.string().optional().allow('', null).trim(),
 
     // --- COMMON OPTIONAL ---
+    notes: Joi.string().optional().allow('', null).max(1000).trim(),
     specialRequirements: Joi.string().optional().allow('', null).trim(),
-  }).required().messages({
-    'any.required': 'Booking details are required',
-  }),
+  }).unknown(true).optional().default({}),
 });
 
 /**

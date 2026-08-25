@@ -48,8 +48,10 @@ export const submitReview = async (req, res, next) => {
       });
     }
 
+    const targetServiceId = serviceId || (booking.serviceId._id || booking.serviceId).toString();
+
     // 4. Verify Service Match
-    if (booking.serviceId.toString() !== serviceId.toString()) {
+    if (serviceId && booking.serviceId.toString() !== serviceId.toString()) {
       return res.status(400).json({
         success: false,
         message: 'Service ID does not match the booking record',
@@ -280,7 +282,9 @@ export const replyToReview = async (req, res, next) => {
     }
 
     // 2. Fetch Vendor Profile of Authenticated User
-    const vendorProfile = await Vendor.findOne({ userId });
+    const vendorProfile = await Vendor.findOne({
+      $or: [{ userId: req.user.id }, { user: req.user.id }],
+    });
     if (!vendorProfile) {
       return res.status(403).json({
         success: false,
@@ -297,8 +301,10 @@ export const replyToReview = async (req, res, next) => {
     }
 
     // 4. Save Vendor Reply
+    const replyText = value.message || value.comment;
     review.vendorReply = {
-      message,
+      message: replyText,
+      comment: replyText,
       repliedAt: new Date(),
     };
     await review.save();

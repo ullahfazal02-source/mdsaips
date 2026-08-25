@@ -94,12 +94,54 @@ export const BookingForm = ({ service, initialPackage, onSubmit, loading, error 
       return;
     }
 
+    let sanitizedDetails = {};
+    if (category === 'construction') {
+      sanitizedDetails = {
+        projectType: formData.projectType || 'Renovation',
+        propertyType: formData.propertyType || 'Residential',
+        area: Number(formData.area) || 0,
+        unit: formData.unit || 'sqft',
+        projectLocation: formData.projectLocation || formData.address || '',
+        estimatedBudget: Number(formData.estimatedBudget) || 0,
+        preferredStartDate: formData.preferredStartDate || targetDate,
+        projectDescription: formData.projectDescription || '',
+      };
+    } else if (category === 'home') {
+      sanitizedDetails = {
+        serviceType: formData.serviceType || 'Repair & Maintenance',
+        problemDescription: formData.problemDescription || '',
+        preferredDate: formData.preferredDate || targetDate,
+        preferredTime: formData.preferredTime || 'Morning',
+        serviceAddress: formData.serviceAddress || formData.address || '',
+        urgency: formData.urgency || 'Normal',
+        specialRequirements: formData.specialRequirements || '',
+      };
+    } else if (category === 'accommodation') {
+      sanitizedDetails = {
+        checkInDate: formData.checkInDate || targetDate,
+        checkOutDate: formData.checkOutDate || '',
+        guests: Number(formData.guests) || 1,
+        rooms: Number(formData.rooms) || 1,
+        guestDetails: formData.guestDetails || '',
+        specialRequests: formData.specialRequests || formData.specialRequirements || '',
+      };
+    } else {
+      // event
+      sanitizedDetails = {
+        eventType: formData.eventType || 'Wedding',
+        guestCount: Number(formData.guestCount) || 1,
+        venue: formData.venue || '',
+        address: formData.address || '',
+        specialRequirements: formData.specialRequirements || '',
+      };
+    }
+
     const bookingPayload = {
       serviceId: service._id,
       packageSelected: selectedPackage,
       eventDate: targetDate,
-      eventDetails: { ...formData },
-      notes: formData.notes,
+      eventDetails: sanitizedDetails,
+      notes: formData.notes || '',
     };
 
     onSubmit(bookingPayload);

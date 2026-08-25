@@ -7,6 +7,7 @@ import {
   updateServiceSchema,
   toggleServiceStatusSchema,
 } from '../validations/service.validation.js';
+import { isValidSubcategoryForDomain } from '../config/domains.js';
 
 /**
  * @desc    Create a new Service Listing
@@ -45,6 +46,13 @@ export const createService = async (req, res, next) => {
         success: false,
         message: 'Validation failed',
         errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    if (value.subCategory && !isValidSubcategoryForDomain(value.category, value.subCategory)) {
+      return res.status(400).json({
+        success: false,
+        message: `Subcategory '${value.subCategory}' is invalid for domain '${value.category}'.`,
       });
     }
 
@@ -282,6 +290,14 @@ export const updateService = async (req, res, next) => {
         success: false,
         message: 'Validation failed',
         errors: error.details.map((detail) => detail.message),
+      });
+    }
+
+    const targetCategory = value.category || service.category;
+    if (value.subCategory && !isValidSubcategoryForDomain(targetCategory, value.subCategory)) {
+      return res.status(400).json({
+        success: false,
+        message: `Subcategory '${value.subCategory}' is invalid for domain '${targetCategory}'.`,
       });
     }
 

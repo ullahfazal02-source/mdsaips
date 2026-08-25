@@ -173,17 +173,37 @@ export const Booking = () => {
                 <p className="text-xs text-slate-400">
                   {currentBooking.paymentStatus === 'paid'
                     ? 'Payment has been successfully received and verified.'
+                    : currentBooking.status === 'pending'
+                    ? 'Your booking request has been submitted. Waiting for vendor confirmation.'
+                    : currentBooking.status === 'expired'
+                    ? 'Vendor did not respond within the 1-hour window.'
                     : 'Process your payment securely via Razorpay TEST mode.'}
                 </p>
               </div>
 
-              {currentBooking.paymentStatus !== 'paid' && ['pending', 'confirmed'].includes(currentBooking.status) && (
+              {currentBooking.paymentStatus === 'paid' ? (
+                <div className="px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
+                  Payment Successful ✓
+                </div>
+              ) : currentBooking.status === 'pending' ? (
+                <div className="px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold flex items-center justify-center space-x-2">
+                  <Clock className="w-4 h-4" />
+                  <span>Waiting for vendor confirmation</span>
+                </div>
+              ) : currentBooking.status === 'expired' ? (
+                <button
+                  onClick={() => navigate('/services')}
+                  className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-brand-600/20"
+                >
+                  Find Another Vendor
+                </button>
+              ) : currentBooking.status === 'confirmed' ? (
                 <PaymentButton
                   booking={currentBooking}
                   onPaymentSuccess={handleRefreshBooking}
                   className="w-full py-3"
                 />
-              )}
+              ) : null}
             </div>
           </div>
         </div>

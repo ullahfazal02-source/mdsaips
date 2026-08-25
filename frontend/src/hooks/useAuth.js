@@ -138,6 +138,29 @@ export const useAuth = () => {
     }
   };
 
+  /**
+   * Google OAuth Login / Register
+   */
+  const googleLogin = async (googleData) => {
+    dispatch(setAuthLoading(true));
+    dispatch(clearAuthError());
+    try {
+      const response = await axiosInstance.post('/auth/google', googleData);
+      dispatch(setAuthLoading(false));
+
+      if (response.success && response.token) {
+        dispatch(setCredentials({ user: response.user, token: response.token }));
+        toast.success(`Welcome, ${response.user.name}! Authenticated with Google.`);
+      }
+      return response;
+    } catch (err) {
+      const errorMessage = err.message || err.response?.data?.message || 'Google authentication failed';
+      dispatch(setAuthError(errorMessage));
+      toast.error(errorMessage);
+      throw { message: errorMessage };
+    }
+  };
+
   return {
     user: authState.user,
     token: authState.token,
@@ -149,6 +172,7 @@ export const useAuth = () => {
     verifyOtp,
     resendOtp,
     login,
+    googleLogin,
     logout: handleLogout,
     fetchProfile,
   };

@@ -12,6 +12,7 @@ try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
 } catch (e) {}
 
+import app from './app.js';
 import connectDB from './config/db.js';
 import { User, Vendor, Service, Booking, Wishlist } from './models/index.js';
 import { DOMAIN_KEYS, DOMAINS } from './config/domains.js';
@@ -24,6 +25,7 @@ async function runArchitectureVerification() {
   console.log('==================================================');
 
   await connectDB();
+  const server = app.listen(5001);
 
   const ts = Date.now();
   const password = 'Password@123';
@@ -318,6 +320,7 @@ async function runArchitectureVerification() {
   console.log('\n==================================================');
   console.log('--- ALL 23 MASTER ARCHITECTURE TESTS PASSED 100%! ---');
   console.log('==================================================\n');
+  server.close();
   process.exit(0);
 }
 

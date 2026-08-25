@@ -7,9 +7,8 @@ export const createReviewSchema = Joi.object({
     'string.pattern.base': 'Invalid bookingId ObjectId format',
     'any.required': 'bookingId is required',
   }),
-  serviceId: Joi.string().regex(objectIdPattern).required().messages({
+  serviceId: Joi.string().regex(objectIdPattern).optional().allow('', null).messages({
     'string.pattern.base': 'Invalid serviceId ObjectId format',
-    'any.required': 'serviceId is required',
   }),
   rating: Joi.number().integer().min(1).max(5).required().messages({
     'number.min': 'Rating must be at least 1',
@@ -25,11 +24,9 @@ export const createReviewSchema = Joi.object({
 });
 
 export const vendorReplySchema = Joi.object({
-  message: Joi.string().trim().min(2).max(1000).required().messages({
-    'string.empty': 'Reply message cannot be empty',
-    'any.required': 'message is required for vendor reply',
-  }),
-});
+  message: Joi.string().trim().min(2).max(1000).optional(),
+  comment: Joi.string().trim().min(2).max(1000).optional(),
+}).or('message', 'comment');
 
 export const reviewQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),

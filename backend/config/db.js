@@ -29,6 +29,14 @@ export const connectDB = async () => {
     });
 
     logger.info(`MongoDB Connected: ${conn.connection.host} / Database: ${conn.connection.name}`);
+
+    // Drop legacy index if present on payments collection
+    try {
+      await conn.connection.db.collection('payments').dropIndex('transactionId_1');
+    } catch (idxErr) {
+      // Legacy index already removed or non-existent
+    }
+
     return conn;
   } catch (error) {
     logger.error(`MongoDB Connection Failed: ${error.message}`);

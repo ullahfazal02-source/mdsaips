@@ -146,7 +146,7 @@ export const getAdminStats = async (req, res, next) => {
       Booking.countDocuments({ status: 'completed' }),
       Booking.countDocuments({ status: 'pending' }),
       Payment.aggregate([
-        { $match: { status: 'completed' } },
+        { $match: { status: { $in: ['paid', 'completed'] } } },
         { $group: { _id: null, totalRevenue: { $sum: '$amount' } } },
       ]),
     ]);

@@ -12,12 +12,15 @@ import {
   Hotel,
 } from 'lucide-react';
 
+import { getDomainLabel } from '../../config/domains';
+
 /**
  * Domain-Specific Booking Details Form Component
  * Dynamically renders required input fields based on Service.category (event, construction, home, accommodation).
  */
 export const DomainBookingDetails = ({ category = 'event', formData, onChange }) => {
   const catKey = (category || 'event').toLowerCase();
+  const domainLabel = getDomainLabel(catKey);
 
   const handleInputChange = (field, value) => {
     onChange({
@@ -29,6 +32,11 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
   if (catKey === 'construction') {
     return (
       <div className="space-y-4 border-t border-slate-800 pt-4">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs">
+          <span className="text-slate-300">Service Domain (Read-Only):</span>
+          <span className="font-extrabold text-blue-400 uppercase tracking-wider">{domainLabel}</span>
+        </div>
+
         <h4 className="text-sm font-bold text-blue-400 flex items-center space-x-2">
           <Building className="w-4 h-4 text-blue-400" />
           <span>Construction & Renovation Project Details</span>
@@ -124,8 +132,18 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
   }
 
   if (catKey === 'home') {
+    const subCat = (formData.subCategory || formData.serviceType || '').toLowerCase();
+    const isAc = subCat.includes('ac') || subCat.includes('air_conditioning') || subCat.includes('cooler');
+    const isRo = subCat.includes('ro') || subCat.includes('purifier');
+    const isCctv = subCat.includes('cctv') || subCat.includes('smart') || subCat.includes('biometric') || subCat.includes('automation');
+
     return (
       <div className="space-y-4 border-t border-slate-800 pt-4">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+          <span className="text-slate-300">Service Domain (Read-Only):</span>
+          <span className="font-extrabold text-emerald-400 uppercase tracking-wider">{domainLabel}</span>
+        </div>
+
         <h4 className="text-sm font-bold text-emerald-400 flex items-center space-x-2">
           <Wrench className="w-4 h-4 text-emerald-400" />
           <span>Home Service Requirements</span>
@@ -133,16 +151,94 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           <div className="space-y-1">
-            <label className="text-slate-300 font-semibold block">Service Type *</label>
+            <label className="text-slate-300 font-semibold block">Service / Problem Type *</label>
             <input
               type="text"
               required
-              value={formData.serviceType || ''}
-              onChange={(e) => handleInputChange('serviceType', e.target.value)}
-              placeholder="e.g. Deep House Cleaning, Electrical Repair, Plumbing"
+              value={formData.serviceType || formData.problemType || ''}
+              onChange={(e) => {
+                handleInputChange('serviceType', e.target.value);
+                handleInputChange('problemType', e.target.value);
+              }}
+              placeholder="e.g. Pipe Leakage, AC Service, CCTV Installation"
               className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
             />
           </div>
+
+          {/* Conditional AC Fields */}
+          {isAc && (
+            <>
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">AC / Appliance Type</label>
+                <select
+                  value={formData.acType || 'Split AC'}
+                  onChange={(e) => handleInputChange('acType', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
+                >
+                  <option value="Split AC">Split AC</option>
+                  <option value="Window AC">Window AC</option>
+                  <option value="Cassette AC">Cassette AC</option>
+                  <option value="Inverter AC">Inverter AC</option>
+                  <option value="Air Cooler">Air Cooler</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">Brand / Model</label>
+                <input
+                  type="text"
+                  value={formData.acBrand || ''}
+                  onChange={(e) => handleInputChange('acBrand', e.target.value)}
+                  placeholder="e.g. Daikin, Voltas, LG"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Conditional RO Fields */}
+          {isRo && (
+            <>
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">RO Purifier Type</label>
+                <input
+                  type="text"
+                  value={formData.roType || ''}
+                  onChange={(e) => handleInputChange('roType', e.target.value)}
+                  placeholder="e.g. RO + UV + UF Alkaline"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">Water Purifier Brand</label>
+                <input
+                  type="text"
+                  value={formData.waterPurifierBrand || ''}
+                  onChange={(e) => handleInputChange('waterPurifierBrand', e.target.value)}
+                  placeholder="e.g. Kent, Aquaguard, Pureit"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Conditional CCTV / Smart Home Fields */}
+          {isCctv && (
+            <>
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold block">System / Camera Count</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.numberOfDevices || ''}
+                  onChange={(e) => handleInputChange('numberOfDevices', e.target.value)}
+                  placeholder="4"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+            </>
+          )}
 
           <div className="space-y-1">
             <label className="text-slate-300 font-semibold block">Urgency Level</label>
@@ -158,7 +254,7 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
           </div>
 
           <div className="space-y-1">
-            <label className="text-slate-300 font-semibold block">Preferred Date *</label>
+            <label className="text-slate-300 font-semibold block">Preferred Service Date *</label>
             <input
               type="date"
               required
@@ -198,7 +294,7 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
         </div>
 
         <div className="space-y-1 text-xs">
-          <label className="text-slate-300 font-semibold block">Problem Description & Issues</label>
+          <label className="text-slate-300 font-semibold block">Problem Description & Specific Requests</label>
           <textarea
             rows={3}
             value={formData.problemDescription || ''}
@@ -214,6 +310,11 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
   if (catKey === 'accommodation') {
     return (
       <div className="space-y-4 border-t border-slate-800 pt-4">
+        <div className="flex items-center justify-between p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
+          <span className="text-slate-300">Service Domain (Read-Only):</span>
+          <span className="font-extrabold text-purple-400 uppercase tracking-wider">{domainLabel}</span>
+        </div>
+
         <h4 className="text-sm font-bold text-purple-400 flex items-center space-x-2">
           <Hotel className="w-4 h-4 text-purple-400" />
           <span>Accommodation & Stay Details</span>
@@ -295,6 +396,11 @@ export const DomainBookingDetails = ({ category = 'event', formData, onChange })
   // Default Event Domain
   return (
     <div className="space-y-4 border-t border-slate-800 pt-4">
+      <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+        <span className="text-slate-300">Service Domain (Read-Only):</span>
+        <span className="font-extrabold text-amber-400 uppercase tracking-wider">{domainLabel}</span>
+      </div>
+
       <h4 className="text-sm font-bold text-amber-400 flex items-center space-x-2">
         <Calendar className="w-4 h-4 text-amber-400" />
         <span>Event Reservation Details</span>

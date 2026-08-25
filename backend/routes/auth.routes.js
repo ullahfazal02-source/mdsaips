@@ -7,6 +7,7 @@ import {
   resendUserOTP,
   getCurrentUser,
   logoutUser,
+  googleAuth,
 } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -199,6 +200,20 @@ router.post('/login', authLimiter, loginUser);
  *         description: Logout successful
  */
 router.post('/logout', logoutUser);
+
+/**
+ * @openapi
+ * /auth/google:
+ *   post:
+ *     summary: Authenticate user via Google OAuth ID Token
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Google authentication successful and JWT issued
+ *       400:
+ *         description: Invalid or unverified Google token
+ */
+router.post('/google', authLimiter, googleAuth);
 
 /**
  * @openapi

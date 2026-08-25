@@ -480,6 +480,14 @@ export const ServiceDetails = () => {
 
               <button
                 onClick={() => {
+                  const userVendorId = currentVendor?._id;
+                  const serviceVendorId = currentService.vendorId?._id || currentService.vendorId || currentService.vendor;
+
+                  if (userVendorId && serviceVendorId && userVendorId.toString() === serviceVendorId.toString()) {
+                    toast.error('You cannot book your own service.');
+                    return;
+                  }
+
                   const targetUrl = `/booking?serviceId=${id}&package=${activePackage}`;
                   if (!isAuthenticated) {
                     navigate(`/login?redirect=${encodeURIComponent(targetUrl)}`);

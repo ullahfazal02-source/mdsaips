@@ -45,8 +45,13 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response.data,
   (error) => {
+    let msg = error.response?.data?.message || 'An unexpected network error occurred';
+    if (Array.isArray(error.response?.data?.errors) && error.response.data.errors.length > 0) {
+      msg = `${msg}: ${error.response.data.errors.join(', ')}`;
+    }
     const formattedError = {
-      message: error.response?.data?.message || 'An unexpected network error occurred',
+      message: msg,
+      errors: error.response?.data?.errors,
       status: error.response?.status,
     };
     return Promise.reject(formattedError);

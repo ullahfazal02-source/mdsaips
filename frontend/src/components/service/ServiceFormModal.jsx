@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Briefcase, DollarSign, Layers, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import useService from '../../hooks/useService';
+import { getSubcategoriesForDomain } from '../../config/domains';
 
 export const ServiceFormModal = ({ isOpen, onClose, initialData = null, onSuccess }) => {
   const { createNewService, updateServiceListing, loading, error, clearError } = useService();
@@ -217,14 +218,19 @@ export const ServiceFormModal = ({ isOpen, onClose, initialData = null, onSucces
             {/* SubCategory */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">Subcategory</label>
-              <input
-                type="text"
+              <select
                 name="subCategory"
                 value={formData.subCategory}
                 onChange={handleChange}
-                placeholder="e.g. Stage Decoration"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-brand-500"
-              />
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-brand-500"
+              >
+                <option value="">Select Subcategory</option>
+                {getSubcategoriesForDomain(formData.category).map((sub) => (
+                  <option key={sub.key} value={sub.key}>
+                    {sub.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* City */}

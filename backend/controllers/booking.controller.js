@@ -179,16 +179,14 @@ export const createBooking = async (req, res, next) => {
 
     // 6. Package Pricing Calculation (Do NOT trust frontend price)
     let baseAmount = 0;
-    if (packageSelected) {
+    if (packageSelected && Array.isArray(service.packages) && service.packages.length > 0) {
       const pkgNameClean = packageSelected.trim().toLowerCase();
-      const pkg = (service.packages || []).find((p) => p.name && p.name.trim().toLowerCase() === pkgNameClean);
-      if (!pkg) {
-        return res.status(400).json({
-          success: false,
-          message: 'Selected package is not available.',
-        });
+      const pkg = service.packages.find((p) => p.name && p.name.trim().toLowerCase() === pkgNameClean);
+      if (pkg) {
+        baseAmount = Number(pkg.price);
+      } else {
+        baseAmount = Number(service.price || 0);
       }
-      baseAmount = Number(pkg.price);
     } else {
       baseAmount = Number(service.price || 0);
     }

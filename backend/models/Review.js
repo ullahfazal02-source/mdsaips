@@ -71,6 +71,11 @@ const reviewSchema = new mongoose.Schema(
         trim: true,
         default: null,
       },
+      comment: {
+        type: String,
+        trim: true,
+        default: null,
+      },
       repliedAt: {
         type: Date,
         default: null,

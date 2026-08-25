@@ -226,7 +226,7 @@ export const BookingCard = ({
 
         <div className="flex items-center space-x-2 flex-wrap gap-2">
           {/* Customer Pay Now Button */}
-          {!isVendorView && paymentStatus !== 'paid' && ['pending', 'confirmed'].includes(status) && (
+          {!isVendorView && paymentStatus !== 'paid' && status === 'confirmed' && (
             <PaymentButton booking={booking} onPaymentSuccess={onPaymentSuccess} />
           )}
 

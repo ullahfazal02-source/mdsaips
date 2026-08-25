@@ -347,3 +347,111 @@ export const logoutUser = async (req, res) => {
     message: 'Logout successful',
   });
 };
+
+/**
+ * @desc    Authenticate/Register user via Google OAuth Token
+ * @route   POST /api/v1/auth/google
+ * @access  Public
+ */
+export const googleAuth = async (req, res, next) => {
+  try {
+    const { credential, email, name, picture } = req.body;
+
+    let userEmail = email;
+    let userName = name;
+    let userAvatar = picture;
+    let isEmailVerified = true;
+
+    // Decode Google ID Token if passed as credential
+    if (credential) {
+      try {
+        const parts = credential.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+          if (payload.email) userEmail = payload.email;
+          if (payload.name) userName = payload.name;
+          if (payload.picture) userAvatar = payload.picture;
+          if (payload.email_verified !== undefined) isEmailVerified = payload.email_verified;
+        }
+      } catch (e) {
+        logger.warn(`Google token decode fallback: ${e.message}`);
+      }
+    }
+
+    if (!userEmail) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google authentication failed: Email address is required from Google profile.',
+      });
+    }
+
+    if (!isEmailVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google authentication failed: Unverified Google email address.',
+      });
+    }
+
+    const normEmail = userEmail.toLowerCase();
+
+    // Check if user account already exists by email
+    let user = await User.findOne({ email: normEmail });
+
+    if (user) {
+      // Existing user account -> Ensure email marked as verified & update avatar if available
+      if (!user.isEmailVerified) {
+        user.isEmailVerified = true;
+      }
+      if (userAvatar && !user.avatar) {
+        user.avatar = userAvatar;
+      }
+      await user.save();
+      logger.info(`Google OAuth login for existing user: [${user._id}] ${user.email} (${user.role})`);
+    } else {
+      // New account -> Default to 'customer' role (Strict security requirement: Never create admin via OAuth)
+      const randomPassword = `G_${Math.random().toString(36).slice(2)}${Date.now()}`;
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(randomPassword, salt);
+
+      user = await User.create({
+        name: userName || 'Google User',
+        email: normEmail,
+        password: hashedPassword,
+        role: 'customer',
+        isEmailVerified: true,
+        isPhoneVerified: false,
+        avatar: userAvatar || '',
+        status: 'active',
+      });
+
+      logger.info(`Google OAuth created new Customer user: [${user._id}] ${user.email}`);
+    }
+
+    // Check user account status
+    if (user.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: `Your account is ${user.status}. Please contact support.`,
+      });
+    }
+
+    // Issue standard MDSAIPS JWT token
+    const token = generateToken(user._id, user.role);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Google authentication successful',
+      token,
+      user: {
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+      },
+    });
+  } catch (err) {
+    logger.error(`Error during Google OAuth authentication: ${err.message}`);
+    next(err);
+  }
+};

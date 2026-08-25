@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { LogIn, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuth from '@/hooks/useAuth';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -169,6 +170,18 @@ export const Login = () => {
             )}
           </button>
         </form>
+
+        {/* OR Divider & Google OAuth Button */}
+        <div className="space-y-4 pt-2">
+          <div className="relative flex items-center justify-center">
+            <div className="border-t border-slate-800 w-full"></div>
+            <span className="bg-slate-900 px-3 text-[10px] uppercase font-bold text-slate-500 absolute">
+              OR
+            </span>
+          </div>
+
+          <GoogleAuthButton label="Continue with Google" />
+        </div>
 
         <div className="text-center text-xs text-slate-400 pt-2 border-t border-slate-800">
           Don't have an account?{' '}

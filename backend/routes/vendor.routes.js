@@ -84,6 +84,7 @@ const router = Router();
  *         description: Vendor profile already exists
  */
 router.post('/register', protect, authorizeRoles('customer', 'vendor'), registerVendor);
+router.post('/profile', protect, authorizeRoles('customer', 'vendor'), registerVendor);
 
 /**
  * @openapi
