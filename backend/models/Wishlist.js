@@ -42,6 +42,11 @@ const wishlistSchema = new mongoose.Schema(
       required: [true, 'Wishlist must belong to a Customer (User)'],
       unique: true,
     },
+    shareToken: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     items: [wishlistItemSchema],
   },
   {

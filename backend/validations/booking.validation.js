@@ -20,6 +20,12 @@ export const createBookingSchema = Joi.object({
   eventDate: Joi.alternatives().try(Joi.date(), Joi.string().allow('', null)).optional(),
   notes: Joi.string().optional().allow('', null).max(1000).trim(),
 
+  offerId: Joi.string().custom(objectIdValidator).optional().allow('', null),
+  offerCode: Joi.string().optional().allow('', null).trim(),
+  customerLat: Joi.number().optional().allow(null, ''),
+  customerLng: Joi.number().optional().allow(null, ''),
+  city: Joi.string().optional().allow('', null).trim(),
+
   // Flexible / Domain-Specific Booking Details Object
   eventDetails: Joi.object({
     // --- EVENT DOMAIN ---
@@ -58,7 +64,7 @@ export const createBookingSchema = Joi.object({
     notes: Joi.string().optional().allow('', null).max(1000).trim(),
     specialRequirements: Joi.string().optional().allow('', null).trim(),
   }).unknown(true).optional().default({}),
-});
+}).unknown(true);
 
 /**
  * Joi Schema for Querying / Filtering Bookings

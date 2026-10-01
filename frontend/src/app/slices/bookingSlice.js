@@ -1,6 +1,68 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../../api/axiosInstance';
 
+// --------------- New Thunks ---------------
+
+export const cancelBooking = createAsyncThunk(
+  'booking/cancelBooking',
+  async ({ id, reason }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/bookings/${id}/cancel`, { reason });
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to cancel booking');
+    }
+  }
+);
+
+export const fetchCancelledBookings = createAsyncThunk(
+  'booking/fetchCancelledBookings',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get('/bookings/customer/cancelled', { params });
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch cancelled bookings');
+    }
+  }
+);
+
+export const fetchReorderData = createAsyncThunk(
+  'booking/fetchReorderData',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(`/bookings/${id}/reorder-data`);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch reorder data');
+    }
+  }
+);
+
+export const fetchInvoice = createAsyncThunk(
+  'booking/fetchInvoice',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(`/bookings/${id}/invoice`);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to generate invoice');
+    }
+  }
+);
+
+export const processRefund = createAsyncThunk(
+  'booking/processRefund',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(`/bookings/${id}/process-refund`);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to process refund');
+    }
+  }
+);
+
 /**
  * Redux Toolkit Slice for Booking System
  */
@@ -129,6 +191,7 @@ const initialState = {
   bookings: [],
   currentBooking: null,
   customerBookings: [],
+  cancelledBookings: [],
   vendorBookings: [],
   vendorRequests: [],
   loading: false,
@@ -273,6 +336,38 @@ const bookingSlice = createSlice({
             state.currentBooking = updated;
           }
         }
+      })
+      // Cancel Booking
+      .addCase(cancelBooking.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(cancelBooking.fulfilled, (state, action) => {
+        state.loading = false;
+        const updated = action.payload?.data;
+        if (updated) {
+          state.customerBookings = state.customerBookings.map((b) =>
+            b._id === updated._id ? updated : b
+          );
+          if (state.currentBooking?._id === updated._id) {
+            state.currentBooking = updated;
+          }
+        }
+      })
+      .addCase(cancelBooking.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // Fetch Cancelled Bookings
+      .addCase(fetchCancelledBookings.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchCancelledBookings.fulfilled, (state, action) => {
+        state.loading = false;
+        state.cancelledBookings = action.payload?.data || [];
+      })
+      .addCase(fetchCancelledBookings.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
       });
   },
 });

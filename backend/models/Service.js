@@ -152,6 +152,30 @@ const serviceSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    faqs: [
+      {
+        question: { type: String, required: true, trim: true },
+        answer: { type: String, required: true, trim: true },
+        displayOrder: { type: Number, default: 0 },
+        isActive: { type: Boolean, default: true },
+      },
+    ],
+    serviceArea: {
+      type: {
+        type: String,
+        enum: ['Polygon', 'Radius', 'Cities'],
+        default: 'Cities',
+      },
+      polygon: {
+        type: { type: String, enum: ['Polygon'], default: 'Polygon' },
+        coordinates: { type: [[[Number]]], default: [] },
+      },
+      radiusZone: {
+        center: { lat: { type: Number, default: 0 }, lng: { type: Number, default: 0 } },
+        radiusKm: { type: Number, default: 10 },
+      },
+      cities: { type: [String], default: [] },
+    },
   },
   {
     timestamps: true,

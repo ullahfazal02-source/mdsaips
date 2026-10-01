@@ -7,10 +7,18 @@ import {
   clearWishlist,
   updateWishlistNote,
   moveToBooking,
+  getShareLink,
+  getSharedWishlistByToken,
 } from '../controllers/wishlist.controller.js';
 import protect from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// Public shared wishlist route
+router.get('/shared/:shareToken', getSharedWishlistByToken);
+
+// Customer generate share link route
+router.get('/share-link', protect, getShareLink);
 
 /**
  * @openapi

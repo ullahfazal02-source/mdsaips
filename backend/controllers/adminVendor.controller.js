@@ -120,7 +120,7 @@ export const verifyVendor = async (req, res, next) => {
  */
 export const getAdminStats = async (req, res, next) => {
   try {
-    const { User, Vendor, Service, Booking, Payment } = await import('../models/index.js');
+    const { User, Vendor, Service, Booking, Payment, Cancellation } = await import('../models/index.js');
 
     const [
       totalUsers,
@@ -133,7 +133,15 @@ export const getAdminStats = async (req, res, next) => {
       totalBookings,
       completedBookings,
       pendingBookings,
+      rejectedBookings,
+      cancelledBookings,
+      refundsCount,
       payments,
+      refundsAgg,
+      popularDomains,
+      popularSubcategories,
+      popularServices,
+      topVendors,
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ role: 'customer' }),
@@ -145,13 +153,39 @@ export const getAdminStats = async (req, res, next) => {
       Booking.countDocuments(),
       Booking.countDocuments({ status: 'completed' }),
       Booking.countDocuments({ status: 'pending' }),
+      Booking.countDocuments({ status: 'rejected' }),
+      Booking.countDocuments({ status: 'cancelled' }),
+      Cancellation.countDocuments(),
       Payment.aggregate([
         { $match: { status: { $in: ['paid', 'completed'] } } },
         { $group: { _id: null, totalRevenue: { $sum: '$amount' } } },
       ]),
+      Cancellation.aggregate([
+        { $match: { refundStatus: { $in: ['approved', 'processed'] } } },
+        { $group: { _id: null, totalRefunded: { $sum: '$refundAmount' } } },
+      ]),
+      Service.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 }, totalBookings: { $sum: '$totalBookings' } } },
+        { $sort: { totalBookings: -1 } },
+        { $limit: 4 },
+      ]),
+      Service.aggregate([
+        { $group: { _id: '$subCategory', category: { $first: '$category' }, count: { $sum: 1 }, totalBookings: { $sum: '$totalBookings' } } },
+        { $sort: { totalBookings: -1 } },
+        { $limit: 5 },
+      ]),
+      Service.find()
+        .sort({ totalBookings: -1, 'ratings.average': -1 })
+        .limit(5)
+        .select('title category subCategory price totalBookings ratings images'),
+      Vendor.find({ isVerified: true })
+        .sort({ 'ratings.average': -1, totalEarnings: -1 })
+        .limit(5)
+        .select('businessName category ratings totalEarnings location isVerified'),
     ]);
 
     const totalRevenue = payments.length > 0 ? payments[0].totalRevenue : 0;
+    const totalRefundedAmount = refundsAgg.length > 0 ? refundsAgg[0].totalRefunded : 0;
 
     return res.status(200).json({
       success: true,
@@ -166,11 +200,107 @@ export const getAdminStats = async (req, res, next) => {
         totalBookings,
         completedBookings,
         pendingBookings,
+        rejectedBookings,
+        cancelledBookings,
+        refundsCount,
+        totalRefundedAmount,
         totalRevenue,
+        popularDomains,
+        popularSubcategories,
+        popularServices,
+        topVendors,
       },
     });
   } catch (err) {
     next(err);
   }
 };
+
+/**
+ * @desc    Get Detailed Vendor Overview for Admin (Tiers, Offers, Vacation Mode, Analytics)
+ * @route   GET /api/v1/admin/vendors/overview
+ * @access  Private (Admin)
+ */
+export const getAdminVendorOverview = async (req, res, next) => {
+  try {
+    const { Offer, Booking, AnalyticsEvent } = await import('../models/index.js');
+    const { calculateVendorTier } = await import('../config/tierConfig.js');
+
+    const vendors = await Vendor.find().populate('userId', 'name email phone avatar');
+
+    const vendorList = await Promise.all(
+      vendors.map(async (v) => {
+        const completedBookings = await Booking.countDocuments({ vendorId: v._id, status: 'completed' });
+        const totalBookings = await Booking.countDocuments({ vendorId: v._id });
+        const activeOffers = await Offer.countDocuments({ vendorId: v._id, isActive: true });
+        const profileViews = await AnalyticsEvent.countDocuments({ vendorId: v._id, eventType: 'profile_view' });
+
+        const tier = calculateVendorTier({
+          isVerified: v.isVerified,
+          completedBookings,
+          averageRating: v.ratings?.average || 0,
+          reviewCount: v.ratings?.count || 0,
+          responseRate: 95,
+          cancellationRate: 0,
+          accountAgeDays: 30,
+        });
+
+        return {
+          id: v._id,
+          businessName: v.businessName,
+          category: v.category,
+          owner: v.userId,
+          isVerified: v.isVerified,
+          isActive: v.isActive,
+          vacationMode: v.vacationMode || false,
+          tier,
+          activeOffers,
+          completedBookings,
+          totalBookings,
+          profileViews,
+          serviceArea: v.serviceArea,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { vendors: vendorList },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Moderate/Deactivate an Inappropriate Offer (Admin)
+ * @route   PATCH /api/v1/admin/offers/:id/moderate
+ * @access  Private (Admin)
+ */
+export const moderateOffer = async (req, res, next) => {
+  try {
+    const { Offer } = await import('../models/index.js');
+    const { id } = req.params;
+    const { isActive, reason = 'Offer deactivated by administrator' } = req.body;
+
+    const offer = await Offer.findById(id);
+    if (!offer) {
+      return res.status(404).json({ success: false, message: 'Offer not found.' });
+    }
+
+    offer.isActive = typeof isActive === 'boolean' ? isActive : false;
+    await offer.save();
+
+    logger.info(`Admin ${req.user.id} moderated offer ${id}. Active set to: ${offer.isActive}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Offer ${offer.isActive ? 'activated' : 'deactivated'} by admin.`,
+      data: { offer, reason },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 

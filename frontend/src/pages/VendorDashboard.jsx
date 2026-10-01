@@ -33,6 +33,15 @@ import { useDispatch } from 'react-redux';
 import { updateUserRole } from '../app/slices/authSlice';
 import VendorRegistrationModal from '../components/vendor/VendorRegistrationModal';
 import ServiceFormModal from '../components/service/ServiceFormModal';
+import AnalyticsDashboard from '../components/vendor/AnalyticsDashboard';
+import OfferManager from '../components/vendor/OfferManager';
+import ServiceAreaMap from '../components/vendor/ServiceAreaMap';
+import TierBadge from '../components/vendor/TierBadge';
+import TimerCountdown from '../components/vendor/TimerCountdown';
+import ChatModal from '../components/vendor/ChatModal';
+import VacationBanner from '../components/vendor/VacationBanner';
+import FAQBuilder from '../components/vendor/FAQBuilder';
+import axios from 'axios';
 
 export const VendorDashboard = () => {
   const navigate = useNavigate();
@@ -58,6 +67,7 @@ export const VendorDashboard = () => {
     confirmBooking,
     startBooking,
     completeBooking,
+    rejectBooking,
     loading: bookingLoading,
   } = useBooking();
 
@@ -73,6 +83,28 @@ export const VendorDashboard = () => {
   const [serviceToEdit, setServiceToEdit] = useState(null);
   const [activeTab, setActiveTab] = useState('requests');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Advanced Vendor Features State
+  const [chatBooking, setChatBooking] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [vacationMode, setVacationMode] = useState(false);
+
+  const handleToggleVacationMode = async (status) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.patch(
+        '/api/v1/vendors/vacation-mode',
+        { vacationMode: status },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        setVacationMode(res.data.data.vacationMode);
+        getDashboardStats();
+      }
+    } catch (err) {
+      console.error('Failed to toggle vacation mode:', err);
+    }
+  };
 
   // Local state for profile editing
   const [profileForm, setProfileForm] = useState({
@@ -524,13 +556,15 @@ export const VendorDashboard = () => {
         {[
           { id: 'requests', label: `Pending Requests (${vendorRequests.length})`, icon: Clock },
           { id: 'bookings', label: `All Bookings (${vendorBookings.length})`, icon: Calendar },
-          { id: 'reviews', label: 'Reviews Received', icon: Star },
+          { id: 'analytics', label: 'Analytics & Tier', icon: Star },
+          { id: 'offers', label: 'Offers & Discounts', icon: DollarSign },
+          { id: 'serviceArea', label: 'Service Area Map', icon: Building },
           { id: 'services', label: 'My Services', icon: PackageIcon },
+          { id: 'reviews', label: 'Reviews Received', icon: Star },
           { id: 'profile', label: 'Business Profile', icon: Building },
           { id: 'availability', label: 'Availability', icon: Calendar },
           { id: 'cancellation', label: 'Cancellation Policy', icon: ShieldCheck },
           { id: 'documents', label: 'Verification Docs', icon: FileText },
-          { id: 'placeholders', label: 'Future Modules', icon: Layers },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -1120,30 +1154,18 @@ export const VendorDashboard = () => {
         </form>
       )}
 
-      {/* TAB 5: Placeholders for Future Modules */}
-      {activeTab === 'placeholders' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[
-            { title: 'Booking Management', module: 'Module 7', desc: 'Calendar sync, instant booking confirmations, and client requests.' },
-            { title: 'Earnings & Settlements', module: 'Module 8', desc: 'Payment Gateway integration, payout histories, and tax invoices.' },
-            { title: 'Customer Reviews', module: 'Module 9', desc: 'Verified customer ratings, feedback responses, and review analytics.' },
-            { title: 'AI Planning Engine', module: 'Module 10', desc: 'Automated package recommendations and multi-vendor aggregated quotes.' },
-          ].map((item, idx) => (
-            <div key={idx} className="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3 opacity-80">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-                  {item.module}
-                </span>
-                <Lock className="w-4 h-4 text-slate-500" />
-              </div>
-              <h3 className="text-base font-bold text-white">{item.title}</h3>
-              <p className="text-xs text-slate-400">{item.desc}</p>
-              <div className="text-[11px] font-medium text-brand-400 pt-2 border-t border-slate-800/80">
-                Available after Booking/Payment modules
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* TAB: Analytics & Tier */}
+      {activeTab === 'analytics' && <AnalyticsDashboard />}
+
+      {/* TAB: Offers & Discounts */}
+      {activeTab === 'offers' && <OfferManager />}
+
+      {/* TAB: Service Area Map */}
+      {activeTab === 'serviceArea' && (
+        <ServiceAreaMap
+          initialArea={dashboardStats?.serviceArea || currentVendor?.serviceArea || {}}
+          onUpdate={() => getDashboardStats()}
+        />
       )}
 
       {/* Modals */}
@@ -1166,6 +1188,14 @@ export const VendorDashboard = () => {
         onClose={() => setIsServiceFormOpen(false)}
         initialData={serviceToEdit}
         onSuccess={() => fetchVendorData()}
+      />
+      <ChatModal
+        booking={chatBooking}
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatBooking(null);
+        }}
       />
     </div>
   );

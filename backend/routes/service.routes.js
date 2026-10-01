@@ -7,11 +7,17 @@ import {
   updateService,
   toggleServiceStatus,
   deleteService,
+  updateServiceFaqs,
+  checkServiceAreaCoverage,
+  getMapSearchServices,
 } from '../controllers/service.controller.js';
 import protect from '../middleware/auth.middleware.js';
 import authorizeRoles from '../middleware/role.middleware.js';
 
 const router = Router();
+
+// Public Map Search endpoint
+router.get('/map-search', getMapSearchServices);
 
 /**
  * @openapi
@@ -159,6 +165,8 @@ router.get('/my-services', protect, getMyServices);
  *       404:
  *         description: Service listing not found
  */
+router.post('/:id/check-coverage', checkServiceAreaCoverage);
+router.put('/:id/faqs', protect, authorizeRoles('vendor'), updateServiceFaqs);
 router.get('/:id', getServiceById);
 
 /**

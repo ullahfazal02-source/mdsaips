@@ -29,6 +29,11 @@ import useCart from '../../hooks/useCart';
 import ReviewSummary from '../review/ReviewSummary';
 import ReviewCard from '../review/ReviewCard';
 import WishlistButton from '../wishlist/WishlistButton';
+import TierBadge from '../vendor/TierBadge';
+import FAQAccordion from '../vendor/FAQAccordion';
+import ServiceAreaCheck from '../vendor/ServiceAreaCheck';
+import VacationBanner from '../vendor/VacationBanner';
+import OfferBadge from '../vendor/OfferBadge';
 
 export const ServiceDetails = () => {
   const { id } = useParams();
@@ -188,12 +193,13 @@ export const ServiceDetails = () => {
               </span>
 
               {vendorData.businessName && (
-                <span className="inline-flex items-center space-x-1 text-slate-300">
+                <div className="inline-flex items-center space-x-2 text-slate-300">
                   <span>By <strong>{vendorData.businessName}</strong></span>
                   {vendorData.isVerified && (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 inline" />
                   )}
-                </span>
+                  <TierBadge tier={vendorData.tier || 'New Vendor'} />
+                </div>
               )}
             </div>
           </div>
@@ -219,10 +225,15 @@ export const ServiceDetails = () => {
         </div>
       </div>
 
+      {/* Vacation Mode Banner Notice */}
+      <VacationBanner isVacationMode={vendorData.vacationMode} />
+
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left 2 Columns */}
         <div className="lg:col-span-2 space-y-8">
+          {/* Service Area Check Widget */}
+          <ServiceAreaCheck serviceId={id} defaultCity={city} />
           {/* Images Gallery */}
           <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
             <h2 className="text-lg font-bold text-white flex items-center space-x-2">
@@ -340,6 +351,9 @@ export const ServiceDetails = () => {
                 ))}
             </div>
           )}
+
+          {/* Service FAQs Section */}
+          <FAQAccordion faqs={faqs || currentService.faqs} />
 
           {/* Module 9: Verified Reviews & Rating Breakdown Section */}
           <div className="space-y-6 pt-4">

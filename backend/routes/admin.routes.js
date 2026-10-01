@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { getPendingVendors, verifyVendor, getAdminStats } from '../controllers/adminVendor.controller.js';
+import { 
+  getPendingVendors, 
+  verifyVendor, 
+  getAdminStats, 
+  getAdminVendorOverview, 
+  moderateOffer 
+} from '../controllers/adminVendor.controller.js';
 import protect from '../middleware/auth.middleware.js';
 import authorizeRoles from '../middleware/role.middleware.js';
 

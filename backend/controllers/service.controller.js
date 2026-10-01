@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import Service from '../models/Service.js';
 import Vendor from '../models/Vendor.js';
+import { Offer } from '../models/index.js';
+import { checkLocationCoverage, getDistanceKm } from '../utils/geoUtils.js';
 import logger from '../utils/logger.js';
 import {
   createServiceSchema,
@@ -424,3 +426,180 @@ export const deleteService = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * @desc    Add / Edit / Delete / Reorder FAQs for a Service
+ * @route   PUT /api/v1/services/:id/faqs
+ * @access  Private (Vendor Owner)
+ */
+export const updateServiceFaqs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { faqs } = req.body;
+
+    const service = await Service.findById(id);
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Service listing not found' });
+    }
+
+    const vendor = await Vendor.findOne({
+      $or: [{ userId: req.user.id }, { user: req.user.id }],
+    });
+
+    if (!vendor || (service.vendorId || service.vendor)?.toString() !== vendor._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit FAQs for this service.' });
+    }
+
+    if (!Array.isArray(faqs)) {
+      return res.status(400).json({ success: false, message: 'FAQs must be an array of questions and answers.' });
+    }
+
+    service.faqs = faqs;
+    await service.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Service FAQs updated successfully.',
+      data: { faqs: service.faqs },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Check customer location coverage against service area
+ * @route   POST /api/v1/services/:id/check-coverage
+ * @access  Public
+ */
+export const checkServiceAreaCoverage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { lat, lng, city } = req.body;
+
+    const service = await Service.findById(id).populate('vendorId', 'serviceArea location');
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Service listing not found' });
+    }
+
+    const vendorObj = service.vendorId || service.vendor;
+    const activeArea = (service.serviceArea?.cities?.length || service.serviceArea?.type === 'Polygon' || (service.serviceArea?.type === 'Radius' && service.serviceArea?.radiusZone?.center?.lat !== 0))
+      ? service.serviceArea
+      : (vendorObj?.serviceArea || vendorObj);
+
+    const result = checkLocationCoverage({ lat, lng, city }, activeArea);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        isAvailable: result.isAvailable,
+        message: result.message,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * @desc    Map-based search for Home Services & Construction & Renovation
+ * @route   GET /api/v1/services/map-search
+ * @access  Public
+ */
+export const getMapSearchServices = async (req, res, next) => {
+  try {
+    const {
+      category = 'home',
+      subCategory,
+      city,
+      lat,
+      lng,
+      radiusKm = 10,
+      minPrice,
+      maxPrice,
+      minRating,
+    } = req.query;
+
+    const query = { isActive: true };
+
+    if (category) {
+      query.category = category;
+    }
+    if (subCategory) {
+      query.subCategory = subCategory;
+    }
+    if (city) {
+      query.city = { $regex: city, $options: 'i' };
+    }
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = Number(minPrice);
+      if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
+    if (minRating) {
+      query['ratings.average'] = { $gte: Number(minRating) };
+    }
+
+    const services = await Service.find(query)
+      .populate('vendorId', 'businessName category location phone ratings serviceArea availability isVerified')
+      .limit(100);
+
+    const centerLat = lat ? Number(lat) : null;
+    const centerLng = lng ? Number(lng) : null;
+    const maxRadius = Number(radiusKm) || 10;
+
+    const defaultCityCoordinates = {
+      bangalore: { lat: 12.9716, lng: 77.5946 },
+      mumbai: { lat: 19.0760, lng: 72.8777 },
+      delhi: { lat: 28.6139, lng: 77.2090 },
+      hyderabad: { lat: 17.3850, lng: 78.4867 },
+      chennai: { lat: 13.0827, lng: 80.2707 },
+    };
+
+    const formattedServices = services.map((s) => {
+      const sObj = s.toObject({ virtuals: true });
+      const vendor = s.vendorId || {};
+      const vendorCoords = vendor.location?.coordinates || vendor.serviceArea?.radiusZone?.center;
+
+      let sLat = vendorCoords?.lat || 0;
+      let sLng = vendorCoords?.lng || 0;
+
+      if ((!sLat || !sLng) && s.city) {
+        const cityClean = s.city.toLowerCase().trim();
+        const cityLookup = defaultCityCoordinates[cityClean];
+        if (cityLookup) {
+          sLat = cityLookup.lat;
+          sLng = cityLookup.lng;
+        }
+      }
+
+      sObj.locationCoordinates = { lat: sLat, lng: sLng };
+
+      let distanceKm = null;
+      if (centerLat !== null && centerLng !== null && sLat && sLng) {
+        distanceKm = getDistanceKm(centerLat, centerLng, sLat, sLng);
+      }
+
+      sObj.distanceKm = distanceKm !== null ? Number(distanceKm.toFixed(1)) : null;
+      return sObj;
+    });
+
+    let results = formattedServices;
+    if (centerLat !== null && centerLng !== null) {
+      results = formattedServices.filter(
+        (s) => s.distanceKm === null || s.distanceKm <= maxRadius
+      );
+      results.sort((a, b) => (a.distanceKm || 9999) - (b.distanceKm || 9999));
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      data: results,
+    });
+  } catch (err) {
+    logger.error(`Error in getMapSearchServices: ${err.message}`);
+    next(err);
+  }
+};
+

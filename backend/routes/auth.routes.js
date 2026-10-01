@@ -8,6 +8,7 @@ import {
   getCurrentUser,
   logoutUser,
   googleAuth,
+  getLoyaltyInfo,
 } from '../controllers/auth.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 
@@ -230,5 +231,8 @@ router.post('/google', authLimiter, googleAuth);
  *         description: Unauthorized or missing token
  */
 router.get('/me', protect, getCurrentUser);
+
+// Loyalty Points summary & history endpoint
+router.get('/loyalty', protect, getLoyaltyInfo);
 
 export default router;

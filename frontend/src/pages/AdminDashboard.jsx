@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldAlert, CheckCircle2, XCircle, FileText, ExternalLink, Clock } from 'lucide-react';
+import { ShieldAlert, CheckCircle2, XCircle, FileText, ExternalLink, Clock, Tag } from 'lucide-react';
 import useVendor from '../hooks/useVendor';
+
+import axios from 'axios';
 
 export const AdminDashboard = () => {
   const { pendingVendors, getPendingVendorsList, verifyVendorAccount, loading } = useVendor();
@@ -8,10 +10,27 @@ export const AdminDashboard = () => {
   const [verifyModal, setVerifyModal] = useState({ open: false, vendor: null, approved: true });
   const [reason, setReason] = useState('');
   const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
+  const [vendorOverview, setVendorOverview] = useState(null);
+
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     getPendingVendorsList().catch(() => {});
+    fetchVendorOverview();
   }, [getPendingVendorsList]);
+
+  const fetchVendorOverview = async () => {
+    try {
+      const res = await axios.get('/api/v1/admin/vendors/overview', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.success) {
+        setVendorOverview(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin vendor overview:', err);
+    }
+  };
 
   const handleOpenVerify = (vendor, approved) => {
     setVerifyModal({ open: true, vendor, approved });
@@ -51,23 +70,41 @@ export const AdminDashboard = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-2">
           <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-            <span>Pending Vendor Verifications</span>
+            <span>Pending Verifications</span>
             <Clock className="w-4 h-4 text-amber-400" />
           </div>
           <p className="text-3xl font-extrabold text-white">{pendingVendors.length}</p>
-          <p className="text-[11px] text-slate-500">Profiles awaiting admin document review</p>
+          <p className="text-[11px] text-slate-500">Awaiting admin document review</p>
         </div>
 
         <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-2">
           <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-            <span>System Status</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>Total Registered Vendors</span>
+            <CheckCircle2 className="w-4 h-4 text-indigo-400" />
           </div>
-          <p className="text-xl font-bold text-emerald-400">100% Operational</p>
-          <p className="text-[11px] text-slate-500">MongoDB Atlas & Nodemailer Email Service Connected</p>
+          <p className="text-3xl font-extrabold text-white">{vendorOverview?.totalVendors || 0}</p>
+          <p className="text-[11px] text-slate-500">Top Vendors: {vendorOverview?.topVendors || 0}</p>
+        </div>
+
+        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-2">
+          <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+            <span>Active Promotional Offers</span>
+            <Tag className="w-4 h-4 text-rose-400" />
+          </div>
+          <p className="text-3xl font-extrabold text-white">{vendorOverview?.activeOffers || 0}</p>
+          <p className="text-[11px] text-slate-500">System Discounts Live</p>
+        </div>
+
+        <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-2">
+          <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
+            <span>Vacation Mode Vendors</span>
+            <CheckCircle2 className="w-4 h-4 text-amber-400" />
+          </div>
+          <p className="text-3xl font-extrabold text-amber-400">{vendorOverview?.vacationVendors || 0}</p>
+          <p className="text-[11px] text-slate-500">Currently Paused</p>
         </div>
       </div>
 

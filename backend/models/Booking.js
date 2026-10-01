@@ -150,6 +150,35 @@ const bookingSchema = new mongoose.Schema(
       maxlength: [1000, 'Notes cannot exceed 1000 characters'],
       default: '',
     },
+    refundStatus: {
+      type: String,
+      enum: {
+        values: ['not_applicable', 'refund_pending', 'refunded', 'rejected'],
+        message: '{VALUE} is not a valid refund status',
+      },
+      default: 'not_applicable',
+    },
+    cancelledAt: {
+      type: Date,
+      default: null,
+    },
+    reorderAvailableUntil: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    reorderCount: {
+      type: Number,
+      default: 0,
+    },
+    invoiceNumber: {
+      type: String,
+      default: null,
+    },
+    pointsAwarded: {
+      type: Number,
+      default: 0,
+    },
     cancellationReason: {
       type: String,
       default: null,

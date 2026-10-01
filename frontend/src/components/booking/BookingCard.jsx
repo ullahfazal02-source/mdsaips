@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   XCircle,
   ArrowRight,
+  FileText,
 } from 'lucide-react';
 import BookingStatus from './BookingStatus';
 import PaymentStatus from '../payment/PaymentStatus';
@@ -34,6 +35,9 @@ export const BookingCard = ({
   onViewDetails,
   onOpenReviewModal,
   onPaymentSuccess,
+  onOpenChat,
+  onCancel,
+  onDownloadInvoice,
   loadingActionId,
 }) => {
   const navigate = useNavigate();
@@ -216,13 +220,25 @@ export const BookingCard = ({
 
       {/* Action Controls Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/60">
-        <button
-          onClick={() => onViewDetails && onViewDetails(booking)}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-800 transition-colors flex items-center space-x-1.5"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span>View Details</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => onViewDetails && onViewDetails(booking)}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-800 transition-colors flex items-center space-x-1.5"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>View Details</span>
+          </button>
+
+          {onOpenChat && (
+            <button
+              onClick={() => onOpenChat(booking)}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
+            >
+              <span>💬</span>
+              <span>Chat {isVendorView ? 'Customer' : 'Vendor'}</span>
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center space-x-2 flex-wrap gap-2">
           {/* Customer Pay Now Button */}
@@ -246,6 +262,28 @@ export const BookingCard = ({
                 <span>Leave Review</span>
               </button>
             )
+          )}
+
+          {/* Customer Cancel Button */}
+          {!isVendorView && onCancel && ['pending', 'confirmed'].includes(status) && (
+            <button
+              onClick={() => onCancel(booking)}
+              className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+            >
+              <XCircle className="w-3.5 h-3.5" />
+              <span>Cancel</span>
+            </button>
+          )}
+
+          {/* Customer Invoice Button */}
+          {!isVendorView && onDownloadInvoice && paymentStatus === 'paid' && (
+            <button
+              onClick={() => onDownloadInvoice(booking)}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Invoice</span>
+            </button>
           )}
 
           {/* Vendor Action Transitions */}

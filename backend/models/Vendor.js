@@ -146,6 +146,40 @@ const vendorSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    vacationMode: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    serviceArea: {
+      type: {
+        type: String,
+        enum: ['Polygon', 'Radius', 'Cities'],
+        default: 'Cities',
+      },
+      polygon: {
+        type: {
+          type: String,
+          enum: ['Polygon'],
+          default: 'Polygon',
+        },
+        coordinates: {
+          type: [[[Number]]],
+          default: [],
+        },
+      },
+      radiusZone: {
+        center: {
+          lat: { type: Number, default: 0 },
+          lng: { type: Number, default: 0 },
+        },
+        radiusKm: { type: Number, default: 10 },
+      },
+      cities: {
+        type: [String],
+        default: [],
+      },
+    },
   },
   {
     timestamps: true,

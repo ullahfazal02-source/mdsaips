@@ -7,6 +7,7 @@ try {
   dns.setServers(['8.8.8.8', '1.1.1.1']);
 } catch (dnsErr) {}
 
+dotenv.config({ path: './backend/.env' });
 dotenv.config();
 import './models/index.js';
 

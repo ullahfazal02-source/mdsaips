@@ -1,7 +1,11 @@
-import { Booking, Service, Vendor, User } from '../models/index.js';
+import { Booking, Service, Vendor, User, Offer, Notification, Cancellation } from '../models/index.js';
 import { createBookingSchema, getBookingsQuerySchema } from '../validations/booking.validation.js';
 import logger from '../utils/logger.js';
 import sendEmail from '../utils/sendEmail.js';
+import { calculateDiscountAmount } from './offer.controller.js';
+import { checkLocationCoverage } from '../utils/geoUtils.js';
+import { calculatePointsEarned } from '../config/loyaltyConfig.js';
+
 
 /**
  * Generate unique booking reference number
@@ -86,6 +90,14 @@ export const createBooking = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Vendor is not verified.',
+      });
+    }
+
+    // 4b. VACATION MODE GUARD: Block new booking creation if vendor is on vacation
+    if (vendor.vacationMode === true) {
+      return res.status(400).json({
+        success: false,
+        message: 'Currently unavailable — Vendor is on vacation and temporarily not accepting new bookings.',
       });
     }
 
@@ -198,10 +210,42 @@ export const createBooking = async (req, res, next) => {
       });
     }
 
-    // 7. Calculate 18% GST and Total Amount safely
+    // 6b. Service Area Geographic Validation (Home Services & Construction)
+    const activeServiceArea = (service.serviceArea?.cities?.length || service.serviceArea?.type === 'Polygon' || (service.serviceArea?.type === 'Radius' && service.serviceArea?.radiusZone?.center?.lat !== 0))
+      ? service.serviceArea
+      : vendor.serviceArea;
+    if (category === 'home' || category === 'construction' || activeServiceArea?.type === 'Polygon' || activeServiceArea?.type === 'Radius') {
+      const customerLoc = {
+        lat: req.body.customerLat || req.body.lat || eventDetails.lat,
+        lng: req.body.customerLng || req.body.lng || eventDetails.lng,
+        city: eventDetails.serviceAddress || eventDetails.projectLocation || eventDetails.address || req.body.city || service.city,
+      };
+      const coverage = checkLocationCoverage(customerLoc, activeServiceArea);
+      if (!coverage.isAvailable) {
+        return res.status(400).json({
+          success: false,
+          message: `Booking rejected: ${coverage.message || 'Not available in your area.'}`,
+        });
+      }
+    }
+
+    // 7. Authoritative Promotional Offer & Discount Validation
+    let discount = 0;
+    const { offerId, offerCode } = req.body;
+    if (offerId || offerCode) {
+      const offer = offerId ? await Offer.findById(offerId) : await Offer.findOne({ code: offerCode?.toUpperCase() });
+      if (offer && offer.isActive) {
+        discount = calculateDiscountAmount(offer, baseAmount);
+        if (discount > 0 && offer.usageLimit) {
+          offer.usageCount = (offer.usageCount || 0) + 1;
+          await offer.save();
+        }
+      }
+    }
+
+    // Calculate 18% GST and Final Total Amount safely
     const taxes = Math.round(baseAmount * 0.18);
-    const discount = 0;
-    const totalAmount = baseAmount + taxes - discount;
+    const totalAmount = Math.max(0, baseAmount + taxes - discount);
 
     const pricing = {
       baseAmount,
@@ -539,11 +583,20 @@ export const confirmBooking = async (req, res, next) => {
       });
     }
 
-    // Status transition validation: pending -> confirmed
+    // Status transition validation: pending -> confirmed & 1-hour response timer check
     if (booking.status !== 'pending') {
       return res.status(400).json({
         success: false,
         message: `Booking cannot be confirmed from current status: '${booking.status}'.`,
+      });
+    }
+
+    if (booking.responseDeadline && new Date() > new Date(booking.responseDeadline)) {
+      booking.status = 'expired';
+      await booking.save();
+      return res.status(400).json({
+        success: false,
+        message: 'Booking request has expired (1-hour response window elapsed) and cannot be confirmed.',
       });
     }
 
@@ -697,6 +750,37 @@ export const completeBooking = async (req, res, next) => {
       timestamp: new Date(),
     });
 
+    // Award loyalty points ONLY when booking is completed AND payment is paid
+    if (booking.paymentStatus === 'paid' && (!booking.pointsAwarded || booking.pointsAwarded === 0)) {
+      const points = calculatePointsEarned(booking.pricing?.totalAmount || 0);
+      if (points > 0) {
+        booking.pointsAwarded = points;
+        await User.findByIdAndUpdate(booking.customerId, {
+          $inc: {
+            'loyaltyPoints.current': points,
+            'loyaltyPoints.earned': points,
+          },
+          $push: {
+            loyaltyHistory: {
+              points,
+              type: 'earned',
+              description: `Earned ${points} loyalty points for completed Booking #${booking.bookingNumber}`,
+              bookingId: booking._id,
+              timestamp: new Date(),
+            },
+          },
+        }).catch((err) => logger.error(`Failed to update user loyalty points: ${err.message}`));
+
+        await Notification.create({
+          userId: booking.customerId,
+          title: 'Loyalty Points Earned!',
+          message: `You earned ${points} loyalty points for completed Booking #${booking.bookingNumber}!`,
+          type: 'loyalty_points',
+          link: '/customer-dashboard?tab=loyalty',
+        }).catch(() => {});
+      }
+    }
+
     await booking.save();
 
     // Increment Service totalBookings counter
@@ -718,7 +802,7 @@ export const completeBooking = async (req, res, next) => {
 };
 
 /**
- * @desc    Vendor rejects a pending booking request
+ * @desc    Vendor rejects a booking request
  * @route   PUT /api/v1/bookings/:id/reject
  * @access  Private (Vendor)
  */
@@ -727,6 +811,13 @@ export const rejectBooking = async (req, res, next) => {
     const userId = req.user.id || req.user._id;
     const { id } = req.params;
     const { reason = 'Vendor unable to fulfill request at this time' } = req.body;
+
+    if (!reason || !reason.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rejection reason is required.',
+      });
+    }
 
     const vendor = await Vendor.findOne({ userId });
     if (!vendor) {
@@ -751,22 +842,53 @@ export const rejectBooking = async (req, res, next) => {
       });
     }
 
-    if (booking.status !== 'pending') {
+    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
       return res.status(400).json({
         success: false,
         message: `Booking cannot be rejected from current status: '${booking.status}'.`,
       });
     }
 
+    if (booking.responseDeadline && new Date() > new Date(booking.responseDeadline)) {
+      booking.status = 'expired';
+      await booking.save();
+      return res.status(400).json({
+        success: false,
+        message: 'Booking request has expired (1-hour response window elapsed) and cannot be rejected.',
+      });
+    }
+
     booking.status = 'rejected';
-    booking.cancellationReason = reason;
+    booking.cancellationReason = reason.toString().trim();
+
+    if (booking.paymentStatus === 'paid') {
+      booking.refundStatus = 'refund_pending';
+      await Cancellation.create({
+        booking: booking._id,
+        cancelledBy: userId,
+        userRole: 'vendor',
+        reason: `Vendor Rejected: ${reason.toString().trim()}`,
+        refundAmount: booking.pricing?.totalAmount || 0,
+        refundStatus: 'pending',
+      }).catch(() => {});
+    }
+
     booking.timeline.push({
       status: 'rejected',
-      message: `Booking request rejected by vendor: ${reason}`,
+      message: `Booking request rejected by vendor: ${reason.toString().trim()}`,
       timestamp: new Date(),
     });
 
     await booking.save();
+
+    // Customer Notification
+    await Notification.create({
+      userId: booking.customerId,
+      title: 'Booking Request Rejected',
+      message: `Your booking request #${booking.bookingNumber} was rejected by the vendor. Reason: ${reason.toString().trim()}`,
+      type: 'booking_rejected',
+      link: `/booking/${booking._id}`,
+    }).catch(() => {});
 
     logger.info(`Booking [${booking.bookingNumber}] rejected by vendor [${vendor._id}]`);
 
@@ -777,6 +899,435 @@ export const rejectBooking = async (req, res, next) => {
     });
   } catch (error) {
     logger.error(`Error rejecting booking [${req.params.id}]: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Customer cancels a booking
+ * @route   PUT /api/v1/bookings/:id/cancel
+ * @access  Private (Customer, Admin)
+ */
+export const cancelBooking = async (req, res, next) => {
+  try {
+    const customerId = req.user.id || req.user._id;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    if (!reason || !reason.toString().trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancellation reason is required.',
+      });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const isCustomerOwner = booking.customerId.toString() === customerId.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isCustomerOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only cancel your own bookings.',
+      });
+    }
+
+    // Business rules: cannot cancel completed, cancelled, rejected, or expired bookings
+    if (['completed', 'cancelled', 'rejected', 'expired'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Booking cannot be cancelled from current status: '${booking.status}'.`,
+      });
+    }
+
+    const cleanReason = reason.toString().trim();
+    booking.status = 'cancelled';
+    booking.cancellationReason = cleanReason;
+    booking.cancelledAt = new Date();
+    booking.reorderAvailableUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // Exactly 24 hours
+
+    let refundStatus = 'not_applicable';
+    if (booking.paymentStatus === 'paid') {
+      refundStatus = 'refund_pending';
+      booking.refundStatus = 'refund_pending';
+    } else {
+      booking.paymentStatus = 'unpaid';
+      booking.refundStatus = 'not_applicable';
+    }
+
+    booking.timeline.push({
+      status: 'cancelled',
+      message: `Booking cancelled by customer: ${cleanReason}`,
+      timestamp: new Date(),
+    });
+
+    await booking.save();
+
+    // Create Cancellation record
+    await Cancellation.create({
+      booking: booking._id,
+      cancelledBy: customerId,
+      userRole: req.user.role || 'customer',
+      reason: cleanReason,
+      refundAmount: booking.paymentStatus === 'paid' ? (booking.pricing?.totalAmount || 0) : 0,
+      refundStatus: booking.paymentStatus === 'paid' ? 'pending' : 'rejected',
+    }).catch(() => {});
+
+    // Notify Vendor
+    const vendor = await Vendor.findById(booking.vendorId);
+    if (vendor && (vendor.userId || vendor.user)) {
+      await Notification.create({
+        userId: vendor.userId || vendor.user,
+        title: 'Booking Cancelled',
+        message: `Booking #${booking.bookingNumber} was cancelled by customer. Reason: ${cleanReason}`,
+        type: 'booking_cancelled',
+        link: `/booking/${booking._id}`,
+      }).catch(() => {});
+    }
+
+    logger.info(`Booking [${booking.bookingNumber}] cancelled by customer [${customerId}]`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Booking cancelled successfully.',
+      data: booking,
+    });
+  } catch (error) {
+    logger.error(`Error cancelling booking [${req.params.id}]: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get customer's cancelled bookings with reorder window status
+ * @route   GET /api/v1/bookings/customer/cancelled
+ * @access  Private (Customer)
+ */
+export const getCancelledBookings = async (req, res, next) => {
+  try {
+    const customerId = req.user.id || req.user._id;
+    const { page = 1, limit = 10 } = req.query;
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const query = { customerId, status: 'cancelled' };
+
+    const total = await Booking.countDocuments(query);
+    const bookings = await Booking.find(query)
+      .populate('serviceId', 'title category price images city priceUnit subCategory')
+      .populate('vendorId', 'businessName category location phone ratings isVerified')
+      .sort({ cancelledAt: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
+
+    const formattedBookings = bookings.map((b) => {
+      const bObj = b.toObject({ virtuals: true });
+      const now = new Date();
+      const isReorderAvailable = b.reorderAvailableUntil && now <= new Date(b.reorderAvailableUntil);
+      bObj.reorderStatus = isReorderAvailable ? 'reorder_available' : 'reorder_expired';
+      return bObj;
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: formattedBookings.length,
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum) || 1,
+      data: formattedBookings,
+    });
+  } catch (error) {
+    logger.error(`Error fetching customer cancelled bookings: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Fetch fresh reorder data (verifying 24-hour expiry & live prices)
+ * @route   GET /api/v1/bookings/:id/reorder-data
+ * @access  Private (Customer)
+ */
+export const getReorderData = async (req, res, next) => {
+  try {
+    const customerId = req.user.id || req.user._id;
+    const { id } = req.params;
+
+    const oldBooking = await Booking.findById(id)
+      .populate('serviceId')
+      .populate('vendorId');
+
+    if (!oldBooking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Original booking not found.',
+      });
+    }
+
+    if (oldBooking.customerId.toString() !== customerId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You can only reorder your own cancelled bookings.',
+      });
+    }
+
+    if (oldBooking.status !== 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Reorder is only available for cancelled bookings.',
+      });
+    }
+
+    // Server-enforced 24-hour expiry check
+    const now = new Date();
+    const expiryTime = oldBooking.reorderAvailableUntil
+      ? new Date(oldBooking.reorderAvailableUntil)
+      : new Date(new Date(oldBooking.cancelledAt || oldBooking.updatedAt).getTime() + 24 * 60 * 60 * 1000);
+
+    if (now > expiryTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reorder window has expired (24 hours elapsed from cancellation).',
+        isExpired: true,
+        reorderStatus: 'reorder_expired',
+      });
+    }
+
+    // Re-fetch service from database to check current active status & pricing
+    const service = await Service.findById(oldBooking.serviceId?._id || oldBooking.serviceId);
+    if (!service || service.isActive === false) {
+      return res.status(200).json({
+        success: true,
+        isAvailable: false,
+        message: 'This service is currently unavailable.',
+        findSimilarQuery: {
+          category: oldBooking.serviceId?.category || 'home',
+          subCategory: oldBooking.serviceId?.subCategory || '',
+          city: oldBooking.serviceId?.city || '',
+        },
+      });
+    }
+
+    // Re-fetch vendor from database to check active status & vacation mode
+    const vendor = await Vendor.findById(service.vendorId || service.vendor);
+    if (!vendor || vendor.isActive === false || vendor.vacationMode === true) {
+      return res.status(200).json({
+        success: true,
+        isAvailable: false,
+        message: 'The original vendor is currently unavailable.',
+        findSimilarQuery: {
+          category: service.category,
+          subCategory: service.subCategory,
+          city: service.city,
+        },
+      });
+    }
+
+    // Re-calculate fresh package price
+    let currentBaseAmount = Number(service.price || 0);
+    if (oldBooking.packageSelected && Array.isArray(service.packages) && service.packages.length > 0) {
+      const pkg = service.packages.find((p) => p.name?.toLowerCase() === oldBooking.packageSelected.toLowerCase());
+      if (pkg) currentBaseAmount = Number(pkg.price);
+    }
+
+    const currentTaxes = Math.round(currentBaseAmount * 0.18);
+    const currentTotalAmount = currentBaseAmount + currentTaxes;
+
+    return res.status(200).json({
+      success: true,
+      isAvailable: true,
+      reorderStatus: 'reorder_available',
+      data: {
+        oldBookingId: oldBooking._id,
+        serviceId: service._id,
+        serviceTitle: service.title,
+        category: service.category,
+        subCategory: service.subCategory,
+        vendorId: vendor._id,
+        vendorName: vendor.businessName,
+        packageSelected: oldBooking.packageSelected,
+        eventDetails: oldBooking.eventDetails,
+        currentPricing: {
+          baseAmount: currentBaseAmount,
+          taxes: currentTaxes,
+          discount: 0,
+          totalAmount: currentTotalAmount,
+        },
+        reorderAvailableUntil: expiryTime,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error fetching reorder data [${req.params.id}]: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Admin / System processes and confirms refund
+ * @route   PUT /api/v1/bookings/:id/process-refund
+ * @access  Private (Admin)
+ */
+export const processRefund = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    let booking = await Booking.findById(id);
+    let cancellation = null;
+
+    if (!booking) {
+      cancellation = await Cancellation.findById(id).populate('booking');
+      if (cancellation && cancellation.booking) {
+        booking = cancellation.booking;
+      }
+    } else {
+      cancellation = await Cancellation.findOne({ booking: booking._id });
+    }
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking or Cancellation record not found.',
+      });
+    }
+
+    booking.refundStatus = 'refunded';
+    booking.paymentStatus = 'refunded';
+    booking.timeline.push({
+      status: 'refunded',
+      message: 'Refund successfully processed and confirmed by system.',
+      timestamp: new Date(),
+    });
+
+    await booking.save();
+
+    if (cancellation) {
+      cancellation.refundStatus = 'processed';
+      cancellation.processedAt = new Date();
+      await cancellation.save();
+    }
+
+    // Update Payment model if exists
+    if (booking.paymentId) {
+      await Payment.findByIdAndUpdate(booking.paymentId, { status: 'refunded' }).catch(() => {});
+    }
+
+    // Customer Notification
+    await Notification.create({
+      userId: booking.customerId,
+      title: 'Refund Completed',
+      message: `Refund of ₹${booking.pricing?.totalAmount || 0} for Booking #${booking.bookingNumber} has been successfully processed.`,
+      type: 'refund_completed',
+      link: `/booking/${booking._id}`,
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Refund confirmed and processed successfully.',
+      data: booking,
+    });
+  } catch (error) {
+    logger.error(`Error processing refund [${req.params.id}]: ${error.message}`);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Generate authoritative invoice data for paid booking
+ * @route   GET /api/v1/bookings/:id/invoice
+ * @access  Private (Customer, Vendor, Admin)
+ */
+export const downloadInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const booking = await Booking.findById(id)
+      .populate('customerId', 'name email phone')
+      .populate('vendorId', 'businessName category location phone')
+      .populate('serviceId', 'title category subCategory price priceUnit images');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const userId = (req.user.id || req.user._id).toString();
+    const isCustomer = booking.customerId?._id?.toString() === userId || booking.customerId?.toString() === userId;
+    const isVendor = booking.vendorId && (booking.vendorId.userId?.toString() === userId || booking.vendorId.user?.toString() === userId);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isCustomer && !isVendor && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You do not have permission to download this invoice.',
+      });
+    }
+
+    if (booking.paymentStatus !== 'paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invoice is only available for paid bookings.',
+      });
+    }
+
+    if (!booking.invoiceNumber) {
+      booking.invoiceNumber = `INV-2026-${booking._id.toString().slice(-6).toUpperCase()}`;
+      await booking.save();
+    }
+
+    const invoiceData = {
+      brand: 'MDSAIPS',
+      systemName: 'Multi-Domain Service Aggregation & Intelligent Planning System',
+      invoiceNumber: booking.invoiceNumber,
+      bookingNumber: booking.bookingNumber,
+      bookingId: booking._id,
+      invoiceDate: booking.updatedAt || booking.createdAt,
+      serviceDate: booking.eventDate,
+      customer: {
+        name: booking.customerId?.name || 'Customer',
+        email: booking.customerId?.email || 'N/A',
+        phone: booking.customerId?.phone || 'N/A',
+      },
+      vendor: {
+        businessName: booking.vendorId?.businessName || 'Service Provider',
+        category: booking.vendorId?.category || 'N/A',
+        city: booking.vendorId?.location?.city || 'N/A',
+        phone: booking.vendorId?.phone || 'N/A',
+      },
+      service: {
+        title: booking.serviceId?.title || 'Service Listing',
+        category: booking.serviceId?.category || 'N/A',
+        subCategory: booking.serviceId?.subCategory || 'N/A',
+        packageSelected: booking.packageSelected || 'Standard',
+      },
+      pricing: {
+        baseAmount: booking.pricing?.baseAmount || 0,
+        gstRate: '18%',
+        taxes: booking.pricing?.taxes || 0,
+        discount: booking.pricing?.discount || 0,
+        totalAmount: booking.pricing?.totalAmount || 0,
+      },
+      payment: {
+        paymentId: booking.paymentId || 'PAY-VERIFIED',
+        status: booking.paymentStatus,
+        currency: 'INR',
+      },
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: invoiceData,
+    });
+  } catch (error) {
+    logger.error(`Error generating invoice [${req.params.id}]: ${error.message}`);
     next(error);
   }
 };

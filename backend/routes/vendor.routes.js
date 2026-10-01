@@ -9,6 +9,8 @@ import {
   updateCancellationPolicy,
   uploadVerificationDocuments,
   getVendorDashboardStats,
+  toggleVacationMode,
+  updateServiceArea,
 } from '../controllers/vendor.controller.js';
 import protect from '../middleware/auth.middleware.js';
 import authorizeRoles from '../middleware/role.middleware.js';
@@ -148,33 +150,8 @@ router.get('/', getVendors);
  *         description: Vendor profile not found
  */
 router.get('/dashboard/stats', protect, getVendorDashboardStats);
-
-/**
- * @openapi
- * /vendors/verify-documents:
- *   post:
- *     summary: Submit document URLs for admin verification
- *     tags: [Vendors]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - documents
- *             properties:
- *               documents:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: uri
- *     responses:
- *       200:
- *         description: Documents submitted successfully
- */
+router.patch('/vacation-mode', protect, toggleVacationMode);
+router.put('/service-area', protect, updateServiceArea);
 router.post('/verify-documents', protect, uploadVerificationDocuments);
 
 /**

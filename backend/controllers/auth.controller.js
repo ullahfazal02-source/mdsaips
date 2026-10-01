@@ -10,6 +10,7 @@ import {
 import { createOTP, verifyOTP, resendOTP } from '../services/otp.service.js';
 import sendOTPEmail from '../utils/sendOTP.js';
 import logger from '../utils/logger.js';
+import { LOYALTY_CONFIG, calculatePointsDiscount } from '../config/loyaltyConfig.js';
 
 /**
  * Generate JWT signed token helper
@@ -453,5 +454,50 @@ export const googleAuth = async (req, res, next) => {
   } catch (err) {
     logger.error(`Error during Google OAuth authentication: ${err.message}`);
     next(err);
+  }
+};
+
+/**
+ * @desc    Get current user's loyalty points summary and transaction history
+ * @route   GET /api/v1/auth/loyalty
+ * @route   GET /api/v1/users/loyalty
+ * @access  Private
+ */
+export const getLoyaltyInfo = async (req, res, next) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId).select('loyaltyPoints loyaltyHistory name email');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    const current = user.loyaltyPoints?.current || 0;
+    const earned = user.loyaltyPoints?.earned || 0;
+    const redeemed = user.loyaltyPoints?.redeemed || 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        points: {
+          current,
+          earned,
+          redeemed,
+          discountValue: calculatePointsDiscount(current),
+        },
+        config: {
+          earnRate: '1 point per ₹100 spent',
+          conversionRate: '100 points = ₹50 discount',
+          minPointsToRedeem: LOYALTY_CONFIG.MIN_REDEMPTION_POINTS,
+        },
+        history: (user.loyaltyHistory || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)),
+      },
+    });
+  } catch (error) {
+    logger.error(`Error fetching loyalty info: ${error.message}`);
+    next(error);
   }
 };

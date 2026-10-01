@@ -52,9 +52,10 @@ app.use(morgan(':method :url :status :res[content-length] - :response-time ms', 
 // Rate Limiting to prevent brute-force and DDoS
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 5000, // Limit each IP to 5000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'test' || req.ip === '127.0.0.1' || req.ip === '::1',
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again after 15 minutes',

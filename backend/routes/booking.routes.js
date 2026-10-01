@@ -9,6 +9,11 @@ import {
   startBooking,
   completeBooking,
   rejectBooking,
+  cancelBooking,
+  getCancelledBookings,
+  getReorderData,
+  processRefund,
+  downloadInvoice,
 } from '../controllers/booking.controller.js';
 import protect from '../middleware/auth.middleware.js';
 import authorizeRoles from '../middleware/role.middleware.js';
@@ -302,5 +307,20 @@ router.put('/:id/complete', protect, authorizeRoles('vendor', 'customer', 'admin
  *     
  */
 router.put('/:id/reject', protect, authorizeRoles('vendor', 'customer', 'admin'), rejectBooking);
+
+// Customer Cancelled Bookings Endpoint
+router.get('/customer/cancelled', protect, authorizeRoles('customer', 'admin'), getCancelledBookings);
+
+// Cancel Booking Endpoint
+router.put('/:id/cancel', protect, cancelBooking);
+
+// Reorder Data Endpoint
+router.get('/:id/reorder-data', protect, getReorderData);
+
+// Process Refund Endpoint (Admin)
+router.put('/:id/process-refund', protect, authorizeRoles('admin'), processRefund);
+
+// Download Invoice Endpoint
+router.get('/:id/invoice', protect, downloadInvoice);
 
 export default router;

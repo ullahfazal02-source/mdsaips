@@ -67,6 +67,20 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
+    loyaltyPoints: {
+      current: { type: Number, default: 0, min: 0 },
+      earned: { type: Number, default: 0, min: 0 },
+      redeemed: { type: Number, default: 0, min: 0 },
+    },
+    loyaltyHistory: [
+      {
+        points: { type: Number, required: true },
+        type: { type: String, enum: ['earned', 'redeemed'], required: true },
+        description: { type: String, trim: true },
+        bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
     timestamps: true,

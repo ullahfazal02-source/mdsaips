@@ -431,6 +431,117 @@ export const moveToBooking = async (req, res) => {
   }
 };
 
+/**
+ * Generate shareable link token for customer's wishlist
+ * GET /api/v1/wishlist/share-link
+ */
+export const getShareLink = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    let wishlist = await Wishlist.findOne({
+      $or: [
+        { customerId: customerId },
+        { customerId: new mongoose.Types.ObjectId(customerId) },
+      ],
+    });
+
+    if (!wishlist) {
+      wishlist = await Wishlist.create({ customerId, items: [] });
+    }
+
+    if (!wishlist.shareToken) {
+      const crypto = await import('crypto');
+      wishlist.shareToken = crypto.randomBytes(12).toString('hex');
+      await wishlist.save();
+    }
+
+    const shareUrl = `/shared-wishlist/${wishlist.shareToken}`;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        shareToken: wishlist.shareToken,
+        shareUrl,
+        itemCount: wishlist.items.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error generating share link:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to generate share link',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get shared public wishlist content by share token (NO Auth Required)
+ * GET /api/v1/wishlist/shared/:shareToken
+ */
+export const getSharedWishlistByToken = async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    const wishlist = await Wishlist.findOne({ shareToken })
+      .populate({
+        path: 'items.serviceId',
+        select: 'title description category subCategory price priceUnit images city ratings packages isActive',
+        populate: {
+          path: 'vendorId',
+          select: 'businessName category location ratings isVerified',
+        },
+      });
+
+    if (!wishlist) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shared wishlist not found or link expired.',
+      });
+    }
+
+    // Publicly sanitize response: return only public service & vendor info
+    const publicItems = (wishlist.items || [])
+      .filter((item) => item.serviceId && item.serviceId.isActive !== false)
+      .map((item) => {
+        const service = item.serviceId;
+        const vendor = service.vendorId || {};
+        return {
+          serviceId: service._id,
+          title: service.title,
+          description: service.description,
+          category: service.category,
+          subCategory: service.subCategory,
+          price: service.price,
+          priceUnit: service.priceUnit,
+          images: service.images || [],
+          city: service.city,
+          ratings: service.ratings,
+          packages: service.packages || [],
+          vendorName: vendor.businessName || 'Verified Vendor',
+          vendorRating: vendor.ratings?.average || 0,
+          vendorCity: vendor.location?.city || service.city,
+          addedAt: item.addedAt,
+        };
+      });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        title: 'Shared Service Wishlist',
+        items: publicItems,
+        count: publicItems.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching shared wishlist:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch shared wishlist',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   getWishlist,
   getWishlistCount,
@@ -439,4 +550,6 @@ export default {
   clearWishlist,
   updateWishlistNote,
   moveToBooking,
+  getShareLink,
+  getSharedWishlistByToken,
 };

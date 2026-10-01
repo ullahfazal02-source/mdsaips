@@ -16,3 +16,8 @@ export { default as Review } from './Review.js';
 export { default as Wishlist } from './Wishlist.js';
 export { default as Cancellation } from './Cancellation.js';
 export { default as Plan } from './Plan.js';
+export { default as Chat } from './Chat.js';
+export { default as Offer } from './Offer.js';
+export { default as AnalyticsEvent } from './AnalyticsEvent.js';
+export { default as Notification } from './Notification.js';
+

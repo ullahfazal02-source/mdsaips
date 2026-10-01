@@ -13,6 +13,10 @@ import bookingRoutes from './booking.routes.js';
 import paymentRoutes from './payment.routes.js';
 import reviewRoutes from './review.routes.js';
 import wishlistRoutes from './wishlist.routes.js';
+import chatRoutes from './chat.routes.js';
+import offerRoutes from './offer.routes.js';
+import analyticsRoutes from './analytics.routes.js';
+import notificationRoutes from './notification.routes.js';
 
 const router = Router();
 
@@ -39,6 +43,13 @@ router.use('/reviews', reviewRoutes);
 
 // Mount Wishlist System Module Routes
 router.use('/wishlist', wishlistRoutes);
+
+// Mount Vendor Advanced Feature Sub-Routers
+router.use('/chats', chatRoutes);
+router.use('/offers', offerRoutes);
+router.use('/analytics', analyticsRoutes);
+router.use('/notifications', notificationRoutes);
+
 
 /**
  * @openapi

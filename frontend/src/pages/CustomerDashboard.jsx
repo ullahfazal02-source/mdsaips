@@ -12,37 +12,89 @@ import {
   ShoppingCart,
   ArrowRight,
   X,
+  XCircle,
+  Star,
+  FileText,
+  Trophy,
+  RotateCcw,
 } from 'lucide-react';
 import useBooking from '../hooks/useBooking';
 import useWishlist from '../hooks/useWishlist';
 import useCart from '../hooks/useCart';
+import useAuth from '../hooks/useAuth';
 import BookingCard from '../components/booking/BookingCard';
 import ReviewForm from '../components/review/ReviewForm';
+import ChatModal from '../components/vendor/ChatModal';
+import CancelBookingModal from '../components/booking/CancelBookingModal';
+import InvoiceModal from '../components/booking/InvoiceModal';
+import CancelledBookingsTab from '../components/booking/CancelledBookingsTab';
+import LoyaltyPointsPanel from '../components/booking/LoyaltyPointsPanel';
 
 export const CustomerDashboard = () => {
   const navigate = useNavigate();
-  const { customerBookings, fetchCustomerBookings, loading } = useBooking();
+  const { user, fetchProfile } = useAuth();
+  const {
+    customerBookings,
+    cancelledBookings,
+    fetchCustomerBookings,
+    fetchCancelledBookings,
+    cancelBooking,
+    loading,
+  } = useBooking();
   const { wishlist, count: wishlistCount, refresh: refreshWishlist } = useWishlist();
   const { cartItems, itemCount: cartCount, totalAmount: cartTotal } = useCart();
 
+  const [activeTab, setActiveTab] = useState('bookings');
   const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const [chatBooking, setChatBooking] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [cancelBookingData, setCancelBookingData] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [invoiceBookingId, setInvoiceBookingId] = useState(null);
+  const [statusMsg, setStatusMsg] = useState({ type: '', text: '' });
 
   useEffect(() => {
     fetchCustomerBookings();
+    fetchCancelledBookings();
     refreshWishlist().catch(() => {});
-  }, [fetchCustomerBookings, refreshWishlist]);
+    fetchProfile().catch(() => {});
+  }, []);
 
   const handleRefresh = () => {
     fetchCustomerBookings();
+    fetchCancelledBookings();
+    fetchProfile().catch(() => {});
   };
 
-  // Calculate stats directly from actual database results
+  const handleCancelBooking = async (id, reason) => {
+    setCancelLoading(true);
+    const res = await cancelBooking(id, reason);
+    setCancelLoading(false);
+    if (res.success) {
+      setStatusMsg({ type: 'success', text: 'Booking cancelled successfully. Refund will be processed if applicable.' });
+      setCancelBookingData(null);
+      handleRefresh();
+    } else {
+      setStatusMsg({ type: 'error', text: res.error || 'Failed to cancel booking.' });
+      setCancelBookingData(null);
+    }
+  };
+
+  // Stats
   const totalBookings = customerBookings.length;
   const pendingBookings = customerBookings.filter((b) => b.status === 'pending').length;
   const confirmedBookings = customerBookings.filter((b) => b.status === 'confirmed').length;
   const completedBookings = customerBookings.filter((b) => b.status === 'completed').length;
 
   const latestWishlistItems = wishlist.slice(0, 3);
+
+  const loyaltyPoints = user?.loyaltyPoints?.current || 0;
+
+  const TABS = [
+    { id: 'bookings', label: `My Bookings (${totalBookings})`, icon: CalendarCheck },
+    { id: 'cancelled', label: `Cancelled (${cancelledBookings.length})`, icon: XCircle },
+    { id: 'loyalty', label: `Loyalty Points (${loyaltyPoints.toLocaleString()})`, icon: Trophy },
+  ];
 
   return (
     <div className="space-y-8 pb-12 relative">
@@ -67,6 +119,22 @@ export const CustomerDashboard = () => {
           Book New Service
         </button>
       </div>
+
+      {/* Status Message */}
+      {statusMsg.text && (
+        <div
+          className={`p-4 rounded-xl text-xs font-semibold border flex items-center justify-between ${
+            statusMsg.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-red-500/10 border-red-500/30 text-red-400'
+          }`}
+        >
+          <span>{statusMsg.text}</span>
+          <button onClick={() => setStatusMsg({ type: '', text: '' })}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Real Statistics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -99,11 +167,11 @@ export const CustomerDashboard = () => {
 
         <div className="glass-card p-5 rounded-2xl border border-slate-800 space-y-1">
           <div className="flex justify-between items-center text-slate-400 text-xs font-semibold">
-            <span>Completed</span>
-            <Flag className="w-4 h-4 text-emerald-400" />
+            <span>Loyalty Points</span>
+            <Trophy className="w-4 h-4 text-amber-400" />
           </div>
-          <p className="text-2xl font-extrabold text-emerald-400">{completedBookings}</p>
-          <p className="text-[11px] text-slate-500">Fulfilled Services</p>
+          <p className="text-2xl font-extrabold text-amber-400">{loyaltyPoints.toLocaleString()}</p>
+          <p className="text-[11px] text-slate-500">= ₹{Math.floor(loyaltyPoints * 0.5).toLocaleString()} value</p>
         </div>
       </div>
 
@@ -187,51 +255,121 @@ export const CustomerDashboard = () => {
         </div>
       </div>
 
-      {/* Bookings List Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-            <Sparkles className="w-5 h-5 text-brand-400" />
-            <span>My Service Reservations</span>
-          </h2>
-          <span className="text-xs text-slate-400">{totalBookings} Total</span>
-        </div>
-
-        {loading && customerBookings.length === 0 ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent"></div>
-          </div>
-        ) : customerBookings.length === 0 ? (
-          <div className="glass-panel p-8 rounded-2xl border border-slate-800 text-center space-y-4">
-            <Info className="w-10 h-10 text-slate-500 mx-auto" />
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">No Bookings Yet</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                You haven't requested any service reservations. Browse the service marketplace to get started.
-              </p>
-            </div>
+      {/* Tab Navigation */}
+      <div className="flex overflow-x-auto gap-2 border-b border-slate-800 pb-2">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
             <button
-              onClick={() => navigate('/services')}
-              className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition-all"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                activeTab === tab.id
+                  ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+              }`}
             >
-              Explore Services
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB: MY BOOKINGS */}
+      {activeTab === 'bookings' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <Sparkles className="w-5 h-5 text-brand-400" />
+              <span>My Service Reservations</span>
+            </h2>
+            <span className="text-xs text-slate-400">{totalBookings} Total</span>
+          </div>
+
+          {loading && customerBookings.length === 0 ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-500 border-t-transparent"></div>
+            </div>
+          ) : customerBookings.length === 0 ? (
+            <div className="glass-panel p-8 rounded-2xl border border-slate-800 text-center space-y-4">
+              <Info className="w-10 h-10 text-slate-500 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white">No Bookings Yet</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  You haven't requested any service reservations. Browse the service marketplace to get started.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/services')}
+                className="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition-all"
+              >
+                Explore Services
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {customerBookings.map((booking) => (
+                <BookingCard
+                  key={booking._id}
+                  booking={booking}
+                  isVendorView={false}
+                  onViewDetails={(b) => navigate(`/booking/${b._id}`)}
+                  onOpenReviewModal={(b) => setSelectedBookingForReview(b)}
+                  onOpenChat={(b) => {
+                    setChatBooking(b);
+                    setIsChatOpen(true);
+                  }}
+                  onCancel={
+                    ['pending', 'confirmed'].includes(booking.status)
+                      ? (b) => setCancelBookingData(b)
+                      : null
+                  }
+                  onDownloadInvoice={
+                    booking.paymentStatus === 'paid'
+                      ? (b) => setInvoiceBookingId(b._id)
+                      : null
+                  }
+                  onPaymentSuccess={handleRefresh}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: CANCELLED BOOKINGS */}
+      {activeTab === 'cancelled' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <XCircle className="w-5 h-5 text-red-400" />
+              <span>Cancelled Bookings ({cancelledBookings.length})</span>
+            </h2>
+            <button
+              onClick={() => fetchCancelledBookings()}
+              className="text-xs text-slate-400 hover:text-white flex items-center space-x-1.5 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
             </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {customerBookings.map((booking) => (
-              <BookingCard
-                key={booking._id}
-                booking={booking}
-                isVendorView={false}
-                onViewDetails={(b) => navigate(`/booking/${b._id}`)}
-                onOpenReviewModal={(b) => setSelectedBookingForReview(b)}
-                onPaymentSuccess={handleRefresh}
-              />
-            ))}
+          <CancelledBookingsTab cancelledBookings={cancelledBookings} loading={loading} />
+        </div>
+      )}
+
+      {/* TAB: LOYALTY POINTS */}
+      {activeTab === 'loyalty' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center space-x-2">
+              <Trophy className="w-5 h-5 text-amber-400" />
+              <span>Loyalty Rewards</span>
+            </h2>
           </div>
-        )}
-      </div>
+          <LoyaltyPointsPanel user={user} />
+        </div>
+      )}
 
       {/* Review Modal Popup */}
       {selectedBookingForReview && (
@@ -254,6 +392,32 @@ export const CustomerDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Cancel Booking Modal */}
+      <CancelBookingModal
+        booking={cancelBookingData}
+        isOpen={Boolean(cancelBookingData)}
+        onClose={() => setCancelBookingData(null)}
+        onConfirm={handleCancelBooking}
+        loading={cancelLoading}
+      />
+
+      {/* Invoice Modal */}
+      <InvoiceModal
+        bookingId={invoiceBookingId}
+        isOpen={Boolean(invoiceBookingId)}
+        onClose={() => setInvoiceBookingId(null)}
+      />
+
+      {/* Chat Modal Drawer */}
+      <ChatModal
+        booking={chatBooking}
+        isOpen={isChatOpen}
+        onClose={() => {
+          setIsChatOpen(false);
+          setChatBooking(null);
+        }}
+      />
     </div>
   );
 };
